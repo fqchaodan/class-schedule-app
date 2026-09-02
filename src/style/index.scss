@@ -1,0 +1,54 @@
+// 测试用的 iconfont，可生效
+// @import './iconfont.css';
+
+.test {
+  // 可以通过 @apply 多个样式封装整体样式
+  @apply mt-4 ml-4;
+
+  padding-top: 4px;
+  color: red;
+}
+
+:root,
+page {
+  // 全站主色：将 @wot-ui 主色色阶覆盖为 indigo（与 UnoCSS indigo-500 主渐变对齐）
+  --wot-primary-1: #eef2ff;
+  --wot-primary-2: #e0e7ff;
+  --wot-primary-3: #c7d2fe;
+  --wot-primary-4: #a5b4fc;
+  --wot-primary-5: #818cf8;
+  --wot-primary-6: #6366f1;
+  --wot-primary-7: #4f46e5;
+  --wot-primary-8: #4338ca;
+  --wot-primary-9: #3730a3;
+  --wot-primary-10: #312e81;
+}
+
+/* 阻止滚动穿透：scroll-view 到达边界后不再触发外层页面滚动 */
+uni-scroll-view,
+.uni-scroll-view {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* page 禁止 overscroll 橡皮筋，但不用 overflow:hidden 以免影响弹窗和表单交互 */
+page {
+  overscroll-behavior: none;
+}
+
+/*
+border-t-1
+由于uniapp中无法使用*选择器，使用魔法代替*，加上此规则可以简化border与divide的使用，并提升布局的兼容性
+1. 防止padding和border影响元素宽度。 (https://github.com/mozdevs/cssremedy/issues/4)
+2. 允许仅通过添加边框宽度来向元素添加边框。 (https://github.com/tailwindcss/tailwindcss/pull/116)
+3. [UnoCSS]: 允许使用css变量'--un-default-border-color'覆盖默认边框颜色
+*/
+// 这个样式有重大BUG，先去掉！！(2025-08-15)
+// :not(not),
+// ::before,
+// ::after {
+//   box-sizing: border-box; /* 1 */
+//   border-width: 0; /* 2 */
+//   border-style: solid; /* 2 */
+//   border-color: var(--un-default-border-color, #e5e7eb); /* 3 */
+// }
