@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import type { ExportFile } from '@/types/course'
 import { buildExportFile, exportFileApp, pickImportFileApp, validateImportFile } from '@/utils/file-io'
-import { safeAreaBottom } from '@/utils/systemInfo'
+import { requestNotificationPermission, rescheduleNotifications, scheduleCourseNotifications } from '@/utils/notification'
+import { safeAreaBottom, statusBarHeight } from '@/utils/systemInfo'
+import { lightTap } from '@/utils/feedback'
+import { today } from '@/utils/time'
 import { useDialog, useToast } from '@wot-ui/ui'
 
 definePage({
   style: {
     navigationBarTitleText: '设置',
+    navigationStyle: 'custom',
   },
 })
 
@@ -24,8 +28,9 @@ watch(defaultFeeRaw, (v) => {
 
 // ---------- 导出 ----------
 function exportData() {
+  lightTap()
   const data = buildExportFile(courseStore.courses, templateStore.templates, appStore.settings)
-  const date = new Date().toISOString().slice(0, 10)
+  const date = today()
   const filename = `课程表备份_${date}.json`
   // #ifdef H5
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
@@ -108,6 +113,7 @@ const importPreview = ref<{
 } | null>(null)
 
 function pickImportFile() {
+  lightTap()
   // #ifdef H5
   const input = document.createElement('input')
   input.type = 'file'
@@ -203,6 +209,7 @@ function closeImportPreview() {
 
 // ---------- 清空 ----------
 function clearAll() {
+  lightTap()
   dialog
     .confirm({
       title: '清空全部数据',
@@ -221,19 +228,108 @@ function clearAll() {
 const courseCount = computed(() => courseStore.courses.length)
 
 function goTemplates() {
+  lightTap()
   uni.navigateTo({ url: '/pages/templates/templates' })
 }
 function goRecycle() {
+  lightTap()
   uni.navigateTo({ url: '/pages/recycle/recycle' })
 }
+
+// ---------- 课前通知 ----------
+const notificationEnabled = computed({
+  get: () => appStore.settings.notificationEnabled ?? false,
+  set: (val: boolean) => {
+    appStore.updateSettings({ notificationEnabled: val })
+    if (val) {
+      // #ifdef APP-PLUS
+      requestNotificationPermission().then((granted) => {
+        if (granted) {
+          const courseStore = useCourseStore()
+          scheduleCourseNotifications(courseStore.courses, appStore.settings)
+          toast.success('通知已开启')
+        }
+        else {
+          toast.error('需要通知权限才能发送提醒，请到系统设置中开启')
+        }
+      })
+      // #endif
+      // #ifndef APP-PLUS
+      toast.success('通知已开启')
+      // #endif
+    }
+    else {
+      toast.show('通知已关闭')
+    }
+  },
+})
+
+const advanceMinutes = computed({
+  get: () => appStore.settings.notificationAdvanceMinutes ?? 15,
+  set: (val: number) => {
+    appStore.updateSettings({ notificationAdvanceMinutes: val })
+    // 重新调度通知
+    // #ifdef APP-PLUS
+    if (appStore.settings.notificationEnabled) {
+      const courseStore = useCourseStore()
+      rescheduleNotifications(courseStore.courses, appStore.settings)
+    }
+    // #endif
+  },
+})
+
+const advanceOptions = [
+  { value: 5, label: '5 分钟' },
+  { value: 10, label: '10 分钟' },
+  { value: 15, label: '15 分钟' },
+  { value: 30, label: '30 分钟' },
+  { value: 60, label: '1 小时' },
+]
+const advanceColumns = advanceOptions.map(o => o.label)
+const showAdvancePicker = ref(false)
+const advanceLabel = computed(() => {
+  const opt = advanceOptions.find(o => o.value === advanceMinutes.value)
+  return opt?.label ?? '15 分钟'
+})
+const advanceArr = computed({
+  get: () => [advanceLabel.value],
+  set: (val: (string | number)[]) => {
+    const idx = advanceColumns.findIndex(label => label === val[0])
+    if (idx >= 0)
+      advanceMinutes.value = advanceOptions[idx].value
+  },
+})
+
+const notificationTemplate = computed({
+  get: () => appStore.settings.notificationTemplate ?? '即将上课：{student} 的 {course}，时间 {time}',
+  set: (val: string) => {
+    appStore.updateSettings({ notificationTemplate: val })
+  },
+})
+
+function onAdvanceConfirm() {
+  showAdvancePicker.value = false
+}
+
+const templatePlaceholder = '即将上课：{student} 的 {course}，时间 {time}'
+const templateHint = '可用变量：{student}=学生姓名，{course}=课程名，{time}=上课时间'
 </script>
 
 <template>
   <view class="h-screen flex flex-col overflow-hidden bg-gray-50">
-    <!-- 自定义导航栏 -->
-    <NavBar title="设置" />
+    <!-- 标题行（与首页统一风格） -->
+    <view class="shrink-0 bg-gradient-to-b from-indigo-50 to-white" :style="{ paddingTop: `${statusBarHeight}px` }">
+      <view class="h-44px flex items-center px-4">
+        <view class="flex items-center gap-2">
+          <view class="i-carbon-settings text-lg text-indigo-500" />
+          <text class="text-lg text-gray-900 font-bold">
+            设置
+          </text>
+        </view>
+      </view>
+    </view>
     <!-- 滚动内容区 -->
-    <view class="h-0 min-h-0 flex-1 overflow-y-auto px-3" :style="{ paddingBottom: `${safeAreaBottom}px` }">
+    <view class="h-0 min-h-0 flex-1 overflow-y-auto px-3" :style="{ paddingBottom: `${50 + safeAreaBottom}px` }">
       <!-- 数据 -->
       <view class="mt-4">
         <view class="section-label">
@@ -306,6 +402,58 @@ function goRecycle() {
         </wd-cell-group>
       </view>
 
+      <!-- 课前通知 -->
+      <view class="mt-4">
+        <view class="section-label">
+          课前通知
+        </view>
+        <wd-cell-group border rounded>
+          <wd-cell title="开启课前提醒" center>
+            <template #default>
+              <wd-switch v-model="notificationEnabled" />
+            </template>
+            <template #icon>
+              <view class="i-carbon-notification mr-3 text-xl text-indigo-500" />
+            </template>
+          </wd-cell>
+          <wd-cell
+            v-if="notificationEnabled"
+            title="提前提醒时间"
+            is-link
+            center
+            @click="showAdvancePicker = true"
+          >
+            <template #icon>
+              <view class="i-carbon-time mr-3 text-xl text-sky-500" />
+            </template>
+            <template #default>
+              <text class="text-sm text-gray-600">{{ advanceLabel }}</text>
+            </template>
+          </wd-cell>
+          <wd-cell
+            v-if="notificationEnabled"
+            title="通知内容模板"
+            center
+          >
+            <template #icon>
+              <view class="i-carbon-text-align-left mr-3 text-xl text-violet-500" />
+            </template>
+            <template #default>
+              <wd-input
+                v-model="notificationTemplate"
+                :placeholder="templatePlaceholder"
+                compact
+                clearable
+                custom-style="flex: 1; min-width: 80px; text-align: right;"
+              />
+            </template>
+          </wd-cell>
+        </wd-cell-group>
+        <view v-if="notificationEnabled" class="mt-2 px-2 text-2xs text-gray-400 leading-relaxed">
+          {{ templateHint }}
+        </view>
+      </view>
+
       <!-- 偏好 -->
       <view class="mt-4">
         <view class="section-label">
@@ -333,6 +481,15 @@ function goRecycle() {
         所有数据仅保存在本机，请定期导出备份
       </view>
     </view>
+
+    <!-- 提前时间选择器 -->
+    <wd-picker
+      v-model="advanceArr"
+      v-model:visible="showAdvancePicker"
+      :columns="advanceColumns"
+      title="提前提醒时间"
+      @confirm="onAdvanceConfirm"
+    />
 
     <!-- 导入预览弹窗 -->
     <wd-popup
