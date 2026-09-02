@@ -121,4 +121,9 @@ export function timestampToDate(ts: number): DateStr {
   return dayjs(ts).format(DATE_FORMAT)
 }
 
+/** 统一时间戳格式化：YYYY-MM-DD HH:mm:ss */
+export function formatDateTime(ts: number): string {
+  return dayjs(ts).format('YYYY-MM-DD HH:mm:ss')
+}
+
 export { dayjs }
