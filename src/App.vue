@@ -4,6 +4,7 @@ import { getCurrentInstance, onMounted, onUnmounted } from 'vue'
 import { navigateToInterceptor } from '@/router/interceptor'
 import { tabbarStore } from '@/tabbar/store'
 import { permission } from '@/router/permission'
+import { createNotificationChannel, requestNotificationPermission, scheduleCourseNotifications, startForegroundService, rescheduleNotifications } from '@/utils/notification'
 
 const { proxy } = (getCurrentInstance() || {}) as any
 const router = proxy?.$router
@@ -12,6 +13,22 @@ router && permission.install(router)
 
 onLaunch((options) => {
   console.log('App.vue onLaunch', options)
+  // #ifdef APP-PLUS
+  // APP 启动时：创建通知渠道 + 请求权限 + 启动前台服务
+  createNotificationChannel()
+  requestNotificationPermission().then((granted) => {
+    if (!granted) {
+      console.warn('通知权限未授予，课前提醒功能将无法正常工作')
+    }
+  })
+  startForegroundService()
+  // 启动后调度今日课程通知
+  const appStore = useAppStore()
+  const courseStore = useCourseStore()
+  if (appStore.settings.notificationEnabled) {
+    scheduleCourseNotifications(courseStore.courses, appStore.settings)
+  }
+  // #endif
 })
 onShow((options) => {
   console.log('App.vue onShow', options)
@@ -23,9 +40,21 @@ onShow((options) => {
   else {
     navigateToInterceptor.invoke({ url: '/' })
   }
+  // #ifdef APP-PLUS
+  // 应用从后台回到前台：重新调度通知
+  const appStore = useAppStore()
+  const courseStore = useCourseStore()
+  if (appStore.settings.notificationEnabled) {
+    rescheduleNotifications(courseStore.courses, appStore.settings)
+  }
+  // #endif
 })
 onHide(() => {
   console.log('App Hide')
+  // #ifdef APP-PLUS
+  // 应用进入后台：启动前台服务保活
+  startForegroundService()
+  // #endif
 })
 
 // #ifdef H5
