@@ -60,6 +60,12 @@ export const customTabbarList: CustomTabBarItem[] = [
     iconType: 'unocss',
     icon: 'i-carbon-chart-bar',
   },
+  {
+    text: '设置',
+    pagePath: 'pages/settings/settings',
+    iconType: 'unocss',
+    icon: 'i-carbon-settings',
+  },
 
   // 其他类型演示
   // 1、uiLib
@@ -114,7 +120,7 @@ const _tabbar: TabBar = {
   // 只有微信小程序支持 custom。App 和 H5 不生效
   custom: selectedTabbarStrategy === TABBAR_STRATEGY_MAP.CUSTOM_TABBAR,
   color: '#9ca3af',
-  selectedColor: '#111827',
+  selectedColor: '#6366f1',
   backgroundColor: '#F8F8F8',
   borderStyle: 'black',
   height: '50px',

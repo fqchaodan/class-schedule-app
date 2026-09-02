@@ -2,6 +2,8 @@
 // i-carbon-code
 import { customTabbarEnable, needHideNativeTabbar, tabbarCacheEnable } from './config'
 import { safeAreaBottom } from '@/utils/systemInfo'
+import { lightTap } from '@/utils/feedback'
+import { isLandscape } from '@/store/landscape'
 import { tabbarList, tabbarStore } from './store'
 import TabbarItem from './TabbarItem.vue'
 
@@ -27,6 +29,7 @@ function handleClick(index: number) {
   if (index === tabbarStore.curIdx && tabbarStore.isCurrentRouteTabbarItem(index)) {
     return
   }
+  lightTap()
   const list = tabbarList.value
   if (!list[index]) {
     return
@@ -89,8 +92,8 @@ onMounted(() => {
   })
 })
 // #endif
-// 激活态不用品牌色，仅以中性深色 + 字重区分
-const activeColor = '#111827'
+// 激活态使用主题色（indigo-500），非激活态用灰色
+const activeColor = '#6366f1'
 const inactiveColor = '#9ca3af'
 function getColorByIndex(index: number) {
   return tabbarStore.curIdx === index ? activeColor : inactiveColor
@@ -100,7 +103,7 @@ function getColorByIndex(index: number) {
 
 <template>
   <view
-    v-if="customTabbarEnable"
+    v-if="customTabbarEnable && !isLandscape"
     class="border-and-fixed tabbar-glass"
     @touchmove.stop.prevent
   >
