@@ -2,6 +2,7 @@
 import type { Course } from '@/types/course'
 import { addDays, addWeeks, longDate, shortDate, today, weekDays, weekStart } from '@/utils/time'
 import { safeAreaBottom, statusBarHeight } from '@/utils/systemInfo'
+import { lightTap } from '@/utils/feedback'
 
 definePage({
   type: 'home',
@@ -34,11 +35,13 @@ function isToday(day: string) {
 }
 
 function switchMode(m: 'week' | 'day') {
+  lightTap()
   mode.value = m
   appStore.updateSettings({ defaultView: m })
 }
 
 function prevPeriod() {
+  lightTap()
   if (mode.value === 'week') {
     curWeekStart.value = addWeeks(curWeekStart.value, -1)
     curDay.value = addWeeks(curDay.value, -7)
@@ -48,6 +51,7 @@ function prevPeriod() {
   }
 }
 function nextPeriod() {
+  lightTap()
   if (mode.value === 'week') {
     curWeekStart.value = addWeeks(curWeekStart.value, 1)
     curDay.value = addWeeks(curDay.value, 7)
@@ -57,18 +61,18 @@ function nextPeriod() {
   }
 }
 function goToday() {
+  lightTap()
   curWeekStart.value = weekStart()
   curDay.value = today()
 }
 
 function openDetail(course: Course) {
+  lightTap()
   uni.navigateTo({ url: `/pages/course/detail?id=${course.id}` })
 }
 function openEdit() {
+  lightTap()
   uni.navigateTo({ url: '/pages/course/edit' })
-}
-function openSettings() {
-  uni.navigateTo({ url: '/pages/settings/settings' })
 }
 
 const weekTotal = computed(() => days.value.reduce((n, d) => n + coursesOf(d).length, 0))
@@ -82,7 +86,7 @@ const modeOptions = [
 <template>
   <view class="h-screen flex flex-col overflow-hidden bg-gray-50">
     <!-- 顶部工具条（固定，不随内容滚动）：浅染色渐变，柔和不刺眼 -->
-    <view class="shrink-0 bg-gradient-to-b from-indigo-50 to-white" :style="{ paddingTop: `${statusBarHeight}px` }">
+    <view class="shrink-0 from-indigo-50 to-white bg-gradient-to-b" :style="{ paddingTop: `${statusBarHeight}px` }">
       <!-- 标题行（与 NavBar 统一 44px 高度） -->
       <view class="h-44px flex items-center justify-between px-4">
         <view class="flex items-center gap-2">
@@ -102,12 +106,6 @@ const modeOptions = [
               {{ option.value === 'week' ? '周' : '日' }}
             </template>
           </wd-segmented>
-          <wd-button
-            variant="text"
-            size="small"
-            icon="settings"
-            @click="openSettings"
-          />
         </view>
       </view>
       <!-- 日期导航行 -->
@@ -161,7 +159,7 @@ const modeOptions = [
           </view>
           <view
             v-if="coursesOf(day).length === 0 && !isToday(day)"
-            class="border border-dashed border-gray-200 rounded-xl py-3 text-center text-xs text-gray-300"
+            class="border border-gray-200 rounded-xl border-dashed py-3 text-center text-xs text-gray-300"
           >
             暂无课程
           </view>

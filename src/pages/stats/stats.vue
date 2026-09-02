@@ -2,6 +2,7 @@
 import type { Course } from '@/types/course'
 import { dayjs, durationHours, weekStart } from '@/utils/time'
 import { safeAreaBottom, statusBarHeight } from '@/utils/systemInfo'
+import { lightTap } from '@/utils/feedback'
 
 definePage({
   style: {
@@ -63,6 +64,7 @@ const rangeDisplay = computed(() => {
 })
 
 function prevPeriod() {
+  lightTap()
   switch (rangeType.value) {
     case 'day': {
       curDay.value = dayjs(curDay.value).subtract(1, 'day').format('YYYY-MM-DD')
@@ -84,6 +86,7 @@ function prevPeriod() {
   }
 }
 function nextPeriod() {
+  lightTap()
   switch (rangeType.value) {
     case 'day': {
       curDay.value = dayjs(curDay.value).add(1, 'day').format('YYYY-MM-DD')
@@ -105,6 +108,7 @@ function nextPeriod() {
   }
 }
 function goToday() {
+  lightTap()
   curDay.value = dayjs().format('YYYY-MM-DD')
   curWeekStart.value = weekStart()
   curMonth.value = dayjs().format('YYYY-MM')

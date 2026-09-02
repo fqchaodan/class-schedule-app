@@ -6,6 +6,7 @@ import { isCourseConflict } from '@/utils/conflict'
 import { dateToTimestamp, timestampToDate, timeToMinutes, weekStart } from '@/utils/time'
 import { draftsToCourses } from '@/store/template'
 import { useTimeOptions } from '@/hooks/useCourseForm'
+import { lightTap } from '@/utils/feedback'
 import { useDialog, useToast } from '@wot-ui/ui'
 
 definePage({
@@ -27,10 +28,12 @@ const cycleTemplates = computed(() => templateStore.templates.filter(t => t.kind
 const tabOptions = ['course', 'cycle']
 
 function useForNew(tpl: CourseTemplate) {
+  lightTap()
   uni.navigateTo({ url: `/pages/course/edit?tplId=${tpl.id}` })
 }
 
 function removeCourseTpl(tpl: CourseTemplate) {
+  lightTap()
   dialog
     .confirm({
       title: '删除模板',
@@ -58,7 +61,9 @@ const startDate = ref(weekStart())
 // ---------- 选择器显隐控制 ----------
 const showStartTimePicker = ref(false)
 const showEndTimePicker = ref(false)
-const showStartDatePicker = ref(false)
+
+// ---------- 日历选择器 ref ----------
+const startDateCalendarRef = ref()
 
 // ---------- 时间选择器 v-model（双列：小时+分钟） ----------
 const startTimeArr = computed({
@@ -90,7 +95,16 @@ function toggleWeekday(idx: number) {
     weekdays.value.push(idx)
 }
 
+function openStartDateCalendar() {
+  startDateCalendarRef.value?.open()
+}
+
+function onStartDateConfirm({ value }: { value: number }) {
+  startDateTs.value = value
+}
+
 function openCreate() {
+  lightTap()
   editId.value = null
   name.value = ''
   studentName.value = ''
@@ -104,6 +118,7 @@ function openCreate() {
 }
 
 function openEdit(tpl: CourseTemplate) {
+  lightTap()
   editId.value = tpl.id
   name.value = tpl.name
   studentName.value = tpl.studentName ?? ''
@@ -117,6 +132,7 @@ function openEdit(tpl: CourseTemplate) {
 }
 
 function saveForm() {
+  lightTap()
   if (!name.value.trim()) {
     toast.error('请填写模板名称')
     return
@@ -163,6 +179,7 @@ function saveForm() {
 }
 
 function removeTpl(tpl: CourseTemplate) {
+  lightTap()
   dialog
     .confirm({
       title: '删除模板',
@@ -191,6 +208,7 @@ const previewWithConflict = computed(() =>
 const conflictCount = computed(() => previewWithConflict.value.filter(i => i.conflict).length)
 
 function openPreview(tpl: CourseTemplate) {
+  lightTap()
   previewTpl.value = tpl
 }
 
@@ -199,6 +217,7 @@ function closePreview() {
 }
 
 function confirmGenerate() {
+  lightTap()
   if (!previewTpl.value)
     return
   const drafts = previewDrafts.value
@@ -419,7 +438,7 @@ function tplAvatarCls(tpl: CourseTemplate) {
             title="起始日期"
             is-link
             center
-            @click="showStartDatePicker = true"
+            @click="openStartDateCalendar"
           >
             <template #default>
               <text class="text-sm text-gray-800">{{ startDate }}</text>
@@ -466,12 +485,14 @@ function tplAvatarCls(tpl: CourseTemplate) {
       title="结束时间"
     />
 
-    <!-- 日期选择器 - 起始日期 -->
-    <wd-datetime-picker
+    <!-- 日历选择器 - 起始日期 -->
+    <wd-calendar
+      ref="startDateCalendarRef"
       v-model="startDateTs"
-      v-model:visible="showStartDatePicker"
       title="起始日期"
       type="date"
+      :first-day-of-week="1"
+      @confirm="onStartDateConfirm"
     />
 
     <!-- 生成预览弹层 -->

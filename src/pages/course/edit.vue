@@ -3,6 +3,7 @@ import type { Course, CourseTemplate } from '@/types/course'
 import { useCourseForm, useTimeOptions } from '@/hooks/useCourseForm'
 import { dateToTimestamp, timestampToDate } from '@/utils/time'
 import { safeAreaBottom } from '@/utils/systemInfo'
+import { lightTap, successTap } from '@/utils/feedback'
 import { useDialog, useToast } from '@wot-ui/ui'
 
 definePage({
@@ -37,10 +38,12 @@ const {
 } = useCourseForm()
 
 // ---------- 选择器显隐控制 ----------
-const showStartDatePicker = ref(false)
-const showEndDatePicker = ref(false)
 const showStartTimePicker = ref(false)
 const showEndTimePicker = ref(false)
+
+// ---------- 日历选择器 ref ----------
+const startDateCalendarRef = ref()
+const endDateCalendarRef = ref()
 
 // ---------- 日期时间戳双向转换 ----------
 const startDateTs = computed({
@@ -57,6 +60,21 @@ const endDateTs = computed({
     endDate.value = timestampToDate(ts)
   },
 })
+
+function openStartDateCalendar() {
+  startDateCalendarRef.value?.open()
+}
+function openEndDateCalendar() {
+  endDateCalendarRef.value?.open()
+}
+
+// ---------- 日历确认回调 ----------
+function onStartDateConfirm({ value }: { value: number }) {
+  startDateTs.value = value
+}
+function onEndDateConfirm({ value }: { value: number }) {
+  endDateTs.value = value
+}
 
 // ---------- 课程模板（快速填充） ----------
 const courseTemplates = computed(() => templateStore.templates.filter(t => t.kind === 'course'))
@@ -130,6 +148,7 @@ const conflictDialogVisible = ref(false)
 const pendingConflicts = ref<Course[]>([])
 
 function save() {
+  lightTap()
   const err = validate()
   if (err) {
     toast.error(err)
@@ -159,6 +178,7 @@ function doSave(force: boolean) {
     ok = true
   }
   if (ok) {
+    successTap()
     toast.success('已保存')
     setTimeout(() => uni.navigateBack(), 400)
   }
@@ -167,6 +187,7 @@ function doSave(force: boolean) {
 function remove() {
   if (!editId.value)
     return
+  lightTap()
   dialog
     .confirm({
       title: '删除课程',
@@ -184,6 +205,7 @@ function remove() {
 }
 
 function saveAsTemplate() {
+  lightTap()
   if (!studentName.value.trim()) {
     toast.error('请先填写学生姓名')
     return
@@ -219,6 +241,35 @@ const selectedTemplateArr = computed({
   set: (val: (string | number)[]) => {
     selectedTemplateIdx.value = Number(val[0]) || 0
   },
+})
+
+// ---------- 键盘适配 ----------
+const keyboardHeight = ref(0)
+const actionbarStyle = computed(() => {
+  if (keyboardHeight.value > 0) {
+    return {
+      position: 'fixed' as const,
+      bottom: `${keyboardHeight.value}px`,
+      paddingBottom: `${Math.max(safeAreaBottom, 8)}px`,
+    }
+  }
+  return {
+    paddingBottom: `${safeAreaBottom}px`,
+  }
+})
+
+onMounted(() => {
+  // #ifdef APP-PLUS
+  uni.onKeyboardHeightChange?.((res) => {
+    keyboardHeight.value = res.height || 0
+  })
+  // #endif
+})
+
+onUnmounted(() => {
+  // #ifdef APP-PLUS
+  uni.offKeyboardHeightChange?.()
+  // #endif
 })
 </script>
 
@@ -300,7 +351,7 @@ const selectedTemplateArr = computed({
             is-link
             center
             title-width="5em"
-            @click="showStartDatePicker = true"
+            @click="openStartDateCalendar"
           >
             <template #default>
               <text class="text-sm" :class="isCrossDay ? 'text-indigo-500' : 'text-gray-800'">{{ startDate }}</text>
@@ -311,7 +362,7 @@ const selectedTemplateArr = computed({
             is-link
             center
             title-width="5em"
-            @click="showEndDatePicker = true"
+            @click="openEndDateCalendar"
           >
             <template #default>
               <view class="flex items-center justify-end gap-2">
@@ -347,12 +398,12 @@ const selectedTemplateArr = computed({
         </wd-cell-group>
       </view>
       <view class="mt-2 px-2 text-2xs text-gray-400 leading-relaxed">
-        时间任意自定义（5 分钟一档）；结束日期晚于开始日期即为跨天课程，跨天期间每天都会在课表中显示。
+        时间任意自定义（1 分钟一档）；结束日期晚于开始日期即为跨天课程，跨天期间每天都会在课表中显示。
       </view>
     </view>
 
     <!-- 底部操作（fixed 固定视口底部） -->
-    <view class="fixed bottom-0 left-0 right-0 z-10 h-15 flex items-center gap-2 border-t border-gray-100 bg-white/95 px-3 backdrop-blur-sm" :style="{ paddingBottom: `${safeAreaBottom}px` }">
+    <view class="fixed bottom-0 left-0 right-0 z-10 h-15 flex items-center gap-2 border-t border-gray-100 bg-white/95 px-3 backdrop-blur-sm" :style="actionbarStyle">
       <wd-button
         v-if="isEdit"
         type="danger"
@@ -389,20 +440,24 @@ const selectedTemplateArr = computed({
       @confirm="onTemplateConfirm"
     />
 
-    <!-- 日期选择器 - 开始日期 -->
-    <wd-datetime-picker
+    <!-- 日历选择器 - 开始日期 -->
+    <wd-calendar
+      ref="startDateCalendarRef"
       v-model="startDateTs"
-      v-model:visible="showStartDatePicker"
       title="开始日期"
       type="date"
+      :first-day-of-week="1"
+      @confirm="onStartDateConfirm"
     />
 
-    <!-- 日期选择器 - 结束日期 -->
-    <wd-datetime-picker
+    <!-- 日历选择器 - 结束日期 -->
+    <wd-calendar
+      ref="endDateCalendarRef"
       v-model="endDateTs"
-      v-model:visible="showEndDatePicker"
       title="结束日期"
       type="date"
+      :first-day-of-week="1"
+      @confirm="onEndDateConfirm"
     />
 
     <!-- 时间选择器 - 开始时间（双列：小时+分钟） -->

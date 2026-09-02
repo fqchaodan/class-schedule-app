@@ -2,8 +2,9 @@
 import type { Course, NoteType } from '@/types/course'
 import { NOTE_TYPE_LABELS, NOTE_TYPE_OPTIONS } from '@/types/course'
 import { avatarGradient } from '@/utils/avatar'
-import { durationHours } from '@/utils/time'
+import { durationHours, formatDateTime } from '@/utils/time'
 import { safeAreaBottom } from '@/utils/systemInfo'
+import { lightTap } from '@/utils/feedback'
 import { useDialog, useToast } from '@wot-ui/ui'
 
 definePage({
@@ -13,7 +14,6 @@ definePage({
 })
 
 const courseStore = useCourseStore()
-const templateStore = useTemplateStore()
 const dialog = useDialog()
 const toast = useToast()
 
@@ -29,6 +29,7 @@ onLoad((query: any) => {
 
 // ---------- 状态切换 ----------
 function toggleStatus() {
+  lightTap()
   if (course.value)
     courseStore.toggleCompleted(course.value.id)
 }
@@ -41,22 +42,6 @@ function copyMeetingUrl() {
     data: course.value.meetingUrl,
     success: () => toast.success('链接已复制'),
   })
-}
-
-// ---------- 保存为模板 ----------
-function saveAsTemplate() {
-  const c = course.value
-  if (!c)
-    return
-  const tpl = templateStore.saveCourseAsTemplate({
-    studentName: c.studentName,
-    courseName: c.name,
-    meetingUrl: c.meetingUrl,
-    startTime: c.startTime,
-    endTime: c.endTime,
-    fee: c.fee,
-  })
-  toast.success(`已存为模板「${tpl.name}」`)
 }
 
 // ---------- 备注 ----------
@@ -85,6 +70,7 @@ function addNote() {
     toast.error('请填写备注内容')
     return
   }
+  lightTap()
   courseStore.addNote(course.value.id, NOTE_TYPE_OPTIONS[noteTypeIdx.value].value as NoteType, noteContent.value)
   noteContent.value = ''
   toast.success('已添加')
@@ -107,14 +93,17 @@ function removeNote(noteId: string) {
 
 // ---------- 操作 ----------
 function edit() {
+  lightTap()
   uni.navigateTo({ url: `/pages/course/edit?id=${courseId.value}` })
 }
 
 function copyCourse() {
+  lightTap()
   uni.navigateTo({ url: `/pages/course/edit?id=${courseId.value}&copy=1` })
 }
 
 function remove() {
+  lightTap()
   dialog
     .confirm({
       title: '删除课程',
@@ -133,6 +122,35 @@ const isCrossDay = computed(() => course.value && course.value.endDate > course.
 const hours = computed(() => course.value ? durationHours(course.value.startTime, course.value.endTime) : 0)
 /** 头像渐变（与 CourseCard 同一 hash 规则，同一学生全站同色） */
 const avatarCls = computed(() => avatarGradient(course.value ? (course.value.studentName || course.value.name || '课') : '课'))
+
+// ---------- 键盘适配 ----------
+const keyboardHeight = ref(0)
+const actionbarStyle = computed(() => {
+  if (keyboardHeight.value > 0) {
+    return {
+      position: 'fixed' as const,
+      bottom: `${keyboardHeight.value}px`,
+      paddingBottom: `${Math.max(safeAreaBottom, 8)}px`,
+    }
+  }
+  return {
+    paddingBottom: `${safeAreaBottom}px`,
+  }
+})
+
+onMounted(() => {
+  // #ifdef APP-PLUS
+  uni.onKeyboardHeightChange?.((res) => {
+    keyboardHeight.value = res.height || 0
+  })
+  // #endif
+})
+
+onUnmounted(() => {
+  // #ifdef APP-PLUS
+  uni.offKeyboardHeightChange?.()
+  // #endif
+})
 </script>
 
 <template>
@@ -207,7 +225,7 @@ const avatarCls = computed(() => avatarGradient(course.value ? (course.value.stu
               {{ NOTE_TYPE_LABELS[note.type] }}
             </wd-tag>
             <view class="flex items-center gap-2 text-2xs text-gray-400">
-              <text>{{ new Date(note.createdAt).toLocaleString() }}</text>
+              <text>{{ formatDateTime(note.createdAt) }}</text>
               <view class="i-carbon-trash-can text-sm text-gray-400 active:text-red-500" @click="removeNote(note.id)" />
             </view>
           </view>
@@ -238,12 +256,9 @@ const avatarCls = computed(() => avatarGradient(course.value ? (course.value.stu
     </view>
 
     <!-- 底部操作（fixed 固定视口底部） -->
-    <view class="fixed bottom-0 left-0 right-0 z-10 h-15 flex items-center gap-2 border-t border-gray-100 bg-white/95 px-3 backdrop-blur-sm" :style="{ paddingBottom: `${safeAreaBottom}px` }">
+    <view class="fixed bottom-0 left-0 right-0 z-10 h-15 flex items-center gap-2 border-t border-gray-100 bg-white/95 px-3 backdrop-blur-sm" :style="actionbarStyle">
       <wd-button variant="plain" block @click="copyCourse">
         复制
-      </wd-button>
-      <wd-button type="primary" variant="plain" block icon="save" @click="saveAsTemplate">
-        存为模板
       </wd-button>
       <wd-button type="primary" block @click="edit">
         编辑
