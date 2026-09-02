@@ -55,7 +55,7 @@ export default defineManifestConfig({
       /* android打包配置 */
       android: {
         minSdkVersion: 21,
-        targetSdkVersion: 30,
+        targetSdkVersion: 33,
         abiFilters: ['armeabi-v7a', 'arm64-v8a'],
         // 兼容 Android 10+ 分区存储（Scoped Storage），允许使用旧版外部存储访问模式
         requestLegacyExternalStorage: true,
@@ -77,6 +77,11 @@ export default defineManifestConfig({
           '<uses-permission android:name="android.permission.WRITE_SETTINGS"/>',
           '<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>',
           '<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>',
+          '<uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>',
+          '<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>',
+          '<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>',
+          '<uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>',
+          '<uses-permission android:name="android.permission.USE_EXACT_ALARM"/>',
         ],
       },
       /* ios打包配置 */

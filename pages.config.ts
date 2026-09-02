@@ -8,6 +8,10 @@ export default defineUniPages({
     navigationBarBackgroundColor: '#f8f8f8',
     navigationBarTextStyle: 'black',
     backgroundColor: '#FFFFFF',
+    // #ifdef APP-PLUS
+    animationType: 'slide-in-right',
+    animationDuration: 300,
+    // #endif
   },
   easycom: {
     autoscan: true,
