@@ -1,98 +1,117 @@
 <p align="center">
-  <a href="https://github.com/unibest-tech/unibest">
-    <img width="160" src="./src/static/logo.svg">
-  </a>
+  <img width="80" src="favicon.ico">
 </p>
 
-<h1 align="center">
-  <a href="https://github.com/unibest-tech/unibest" target="_blank">unibest - 最好的 uniapp 开发框架</a>
-</h1>
+<h1 align="center">番茄课表</h1>
 
-<div align="center">
-旧仓库 codercup 进不去了，star 也拿不回来，这里也展示一下那个地址的 star.
-
-[![GitHub Repo stars](https://img.shields.io/github/stars/codercup/unibest?style=flat&logo=github)](https://github.com/codercup/unibest)
-[![GitHub forks](https://img.shields.io/github/forks/codercup/unibest?style=flat&logo=github)](https://github.com/codercup/unibest)
-
-</div>
-
-<div align="center">
-
-[![GitHub Repo stars](https://img.shields.io/github/stars/feige996/unibest?style=flat&logo=github)](https://github.com/feige996/unibest)
-[![GitHub forks](https://img.shields.io/github/forks/feige996/unibest?style=flat&logo=github)](https://github.com/feige996/unibest)
-[![star](https://gitee.com/feige996/unibest/badge/star.svg?theme=dark)](https://gitee.com/feige996/unibest/stargazers)
-[![fork](https://gitee.com/feige996/unibest/badge/fork.svg?theme=dark)](https://gitee.com/feige996/unibest/members)
-![node version](https://img.shields.io/badge/node-%3E%3D18-green)
-![pnpm version](https://img.shields.io/badge/pnpm-%3E%3D7.30-green)
-![GitHub package.json version (subfolder of monorepo)](https://img.shields.io/github/package-json/v/feige996/unibest)
-![GitHub License](https://img.shields.io/github/license/feige996/unibest)
-
-</div>
-
-`unibest` —— 最好的 `uniapp` 开发模板，由 `uniapp` + `Vue3` + `Ts` + `Vite5` + `UnoCss` + `wot-ui` + `z-paging` 构成，使用了最新的前端技术栈，无需依靠 `HBuilderX`，通过命令行方式运行 `web`、`小程序` 和 `App`（编辑器推荐 `VSCode`，可选 `webstorm`）。
-
-`unibest` 内置了 `约定式路由`、`layout布局`、`请求封装`、`请求拦截`、`登录拦截`、`UnoCSS`、`i18n多语言` 等基础功能，提供了 `代码提示`、`自动格式化`、`统一配置`、`代码片段` 等辅助功能，让你编写 `uniapp` 拥有 `best` 体验 （ `unibest 的由来`）。
-
-![](https://raw.githubusercontent.com/andreasbm/readme/master/screenshots/lines/rainbow.png)
-
-<p align="center">
-  <a href="https://unibest.tech/" target="_blank">📖 文档地址(new)</a>
-  <span style="margin:0 10px;">|</span>
-  <a href="https://unibest-tech.github.io/hello-unibest" target="_blank">📱 DEMO 地址</a>
-</p>
+<p align="center">轻量级家教课程管理工具 · 课表 / 看板 / 统计 / 模板 / 回收站</p>
 
 ---
 
-注意旧的地址 [codercup](https://github.com/codercup/unibest) 我进不去了，使用新的 [feige996](https://github.com/feige996/unibest)。PR和 issue 也请使用新地址，否则无法合并。
+## 简介
+
+**番茄课表** 是一款面向个人家教老师的课程管理 App，基于 [unibest](https://github.com/feige996/unibest) 跨平台框架开发，支持 H5、微信小程序和 APP 三端运行。
+
+所有数据本地存储，无需联网、无需注册，开箱即用。
+
+### 核心功能
+
+| 功能 | 说明 |
+|------|------|
+| 📅 **课表** | 周/日双视图，按天分组展示课程，支持快速翻页与"回到今天" |
+| 🗓️ **每周看板** | 时间轴看板，7 列纵览整周课程，支持缩放与横屏全屏 |
+| 📊 **课时统计** | 按日/周/月/年统计课时数、总时长、预计收入、已收/未收，支持按学生或课程分组 |
+| ✏️ **课程编辑** | 学生姓名、课程名、起止日期/时间、课时费、腾讯会议链接，支持跨天课程 |
+| 📋 **模板管理** | 课程模板（快速填充）与周期排课模板（按周批量生成），生成前冲突预览 |
+| 🗑️ **回收站** | 删除的课程可恢复，恢复时自动检测时间冲突 |
+| 📝 **课程备注** | 教学内容 / 学生情况 / 作业 / 课后反馈四类备注 |
+| ⚠️ **冲突检测** | 新增/编辑课程时自动检测时间冲突，可强制保存 |
+| 💾 **数据导入导出** | JSON 格式备份，支持合并覆盖 / 仅追加两种导入模式 |
+| 🔒 **本地持久化** | Pinia + persistedstate，数据仅存于本机 |
+
+## 技术栈
+
+| 技术 | 说明 |
+|------|------|
+| [uniapp](https://uniapp.dcloud.net.cn/) | 跨平台框架，一套代码多端运行 |
+| [Vue 3](https://vuejs.org/) | Composition API + `<script setup>` |
+| [TypeScript](https://www.typescriptlang.org/) | 全量类型 |
+| [Vite 5](https://vitejs.dev/) | 构建工具 |
+| [UnoCSS](https://unocss.dev/) | 原子化 CSS |
+| [Pinia](https://pinia.vuejs.org/) | 状态管理 + 持久化 |
+| [Wot UI](https://wot-ui.cn/) | UI 组件库 |
+| [dayjs](https://day.js.org/) | 日期处理 |
 
 ## 平台兼容性
 
-| H5  | IOS | 安卓 | 微信小程序 | 字节小程序 | 快手小程序 | 支付宝小程序 | 钉钉小程序 | 百度小程序 |
-| --- | --- | ---- | ---------- | ---------- | ---------- | ------------ | ---------- | ---------- |
-| √   | √   | √    | √          | √          | √          | √            | √          | √          |
+| H5 | iOS | Android | 微信小程序 |
+|:--:|:--:|:------:|:--------:|
+| ✅ | ✅ | ✅ | ✅ |
 
-注意每种 `UI框架` 支持的平台有所不同，详情请看各 `UI框架` 的官网，也可以看 `unibest` 文档。
+> 文件导入导出功能仅在 H5 和 APP 端可用，小程序端暂不支持。
 
-## ⚙️ 环境
+## 快速开始
 
-- node>=18
-- pnpm>=7.30
-- Vue Official>=2.1.10
-- TypeScript>=5.0
+### 环境要求
 
-## 新版分支 
-- main == base
-- base --> base-i18n
-- base-login --> base-login-i18n
+- Node.js >= 20
+- pnpm >= 9
 
-## &#x1F4C2; 快速开始
+### 安装与运行
 
-执行 `pnpm create unibest` 创建项目
-执行 `pnpm i` 安装依赖
-执行 `pnpm dev` 运行 `H5`
-执行 `pnpm dev:mp` 运行 `微信小程序`
+```bash
+# 安装依赖
+pnpm install
 
-## 📦 运行（支持热更新）
+# H5 开发（http://localhost:9000）
+pnpm dev
 
-- web平台： `pnpm dev:h5`, 然后打开 [http://localhost:9000/](http://localhost:9000/)。
-- weixin平台：`pnpm dev:mp` 然后打开微信开发者工具，导入本地文件夹，选择本项目的`dist/dev/mp-weixin` 文件。
-- APP平台：`pnpm dev:app`, 然后打开 `HBuilderX`，导入刚刚生成的`dist/dev/app` 文件夹，选择运行到模拟器(开发时优先使用)，或者运行的安卓/ios基座。(如果是 `安卓` 和 `鸿蒙` 平台，则不用这个方式，可以把整个unibest项目导入到hbx，通过hbx的菜单来运行到对应的平台。)
+# 微信小程序开发
+pnpm dev:mp
 
-## 🔗 发布
+# APP 开发
+pnpm dev:app
+```
 
-- web平台： `pnpm build:h5`，打包后的文件在 `dist/build/h5`，可以放到web服务器，如nginx运行。如果最终不是放在根目录，可以在 `manifest.config.ts` 文件的 `h5.router.base` 属性进行修改。
-- weixin平台：`pnpm build:mp`, 打包后的文件在 `dist/build/mp-weixin`，然后通过微信开发者工具导入，并点击右上角的“上传”按钮进行上传。
-- APP平台：`pnpm build:app`, 然后打开 `HBuilderX`，导入刚刚生成的`dist/build/app` 文件夹，选择发行 - APP云打包。(如果是 `安卓` 和 `鸿蒙` 平台，则不用这个方式，可以把整个unibest项目导入到hbx，通过hbx的菜单来发行到对应的平台。)
+### 构建生产版本
 
-## 📄 License
+```bash
+# H5
+pnpm build
+
+# 微信小程序
+pnpm build:mp
+
+# APP
+pnpm build:app
+```
+
+## 目录结构
+
+```
+src/
+├── pages/
+│   ├── index/          # 课表（周/日视图）
+│   ├── list/           # 每周看板（时间轴）
+│   ├── stats/          # 课时统计
+│   ├── course/
+│   │   ├── detail.vue  # 课程详情
+│   │   └── edit.vue    # 新增/编辑课程
+│   ├── templates/      # 模板管理
+│   ├── recycle/        # 回收站
+│   └── settings/       # 设置（导入导出/偏好）
+├── components/         # CourseCard / NavBar / DragFab / ConflictDialog
+├── store/              # course / template / recycle / app
+├── hooks/              # useCourseForm 等
+├── utils/              # time / conflict / avatar / file-io 等
+├── types/              # course.ts 数据模型
+└── tabbar/             # 自定义底部导航
+```
+
+## 功能截图
+
+<!-- TODO: 补充截图 -->
+
+## License
 
 [MIT](https://opensource.org/license/mit/)
-
-Copyright (c) 2025 菲鸽
-
-## 捐赠
-
-<p align='center'>
-<img alt="special sponsor appwrite" src="https://oss.laf.run/ukw0y1-site/pay/wepay.png" height="330" style="display:inline-block; height:330px;">
-<img alt="special sponsor appwrite" src="https://oss.laf.run/ukw0y1-site/pay/alipay.jpg" height="330" style="display:inline-block; height:330px; margin-left:10px;">
-</p>

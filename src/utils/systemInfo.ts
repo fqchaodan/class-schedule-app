@@ -35,4 +35,10 @@ console.log('systemInfo', systemInfo)
 // windowHeight: 753
 // windowTop: 0
 // windowWidth: 390
+/** 状态栏高度（pt），用于自定义导航栏 padding-top */
+export const statusBarHeight = systemInfo.statusBarHeight || 0
+
+/** 底部安全区高度（pt），用于 pb-safe 等 */
+export const safeAreaBottom = safeAreaInsets?.bottom || 0
+
 export { safeAreaInsets, systemInfo }

@@ -3,6 +3,8 @@ import type { Course, NoteType } from '@/types/course'
 import { NOTE_TYPE_LABELS, NOTE_TYPE_OPTIONS } from '@/types/course'
 import { avatarGradient } from '@/utils/avatar'
 import { durationHours } from '@/utils/time'
+import { safeAreaBottom } from '@/utils/systemInfo'
+import { useDialog, useToast } from '@wot-ui/ui'
 
 definePage({
   style: {
@@ -12,6 +14,8 @@ definePage({
 
 const courseStore = useCourseStore()
 const templateStore = useTemplateStore()
+const dialog = useDialog()
+const toast = useToast()
 
 const course = ref<Course | null>(null)
 const courseId = ref('')
@@ -35,7 +39,7 @@ function copyMeetingUrl() {
     return
   uni.setClipboardData({
     data: course.value.meetingUrl,
-    success: () => uni.showToast({ title: '链接已复制', icon: 'success' }),
+    success: () => toast.success('链接已复制'),
   })
 }
 
@@ -52,7 +56,7 @@ function saveAsTemplate() {
     endTime: c.endTime,
     fee: c.fee,
   })
-  uni.showToast({ title: `已存为模板「${tpl.name}」`, icon: 'success' })
+  toast.success(`已存为模板「${tpl.name}」`)
 }
 
 // ---------- 备注 ----------
@@ -78,26 +82,27 @@ function onNoteTypeConfirm({ value }: { value: (string | number)[] }) {
 
 function addNote() {
   if (!course.value || !noteContent.value.trim()) {
-    uni.showToast({ title: '请填写备注内容', icon: 'none' })
+    toast.error('请填写备注内容')
     return
   }
   courseStore.addNote(course.value.id, NOTE_TYPE_OPTIONS[noteTypeIdx.value].value as NoteType, noteContent.value)
   noteContent.value = ''
-  uni.showToast({ title: '已添加', icon: 'success' })
+  toast.success('已添加')
 }
 
 function removeNote(noteId: string) {
   if (!course.value)
     return
-  uni.showModal({
-    title: '删除备注',
-    content: '确定删除这条备注？',
-    confirmColor: '#ef4444',
-    success: (res) => {
-      if (res.confirm && course.value)
+  dialog
+    .confirm({
+      title: '删除备注',
+      msg: '确定删除这条备注？',
+    })
+    .then(() => {
+      if (course.value)
         courseStore.removeNote(course.value.id, noteId)
-    },
-  })
+    })
+    .catch(() => {})
 }
 
 // ---------- 操作 ----------
@@ -110,18 +115,18 @@ function copyCourse() {
 }
 
 function remove() {
-  uni.showModal({
-    title: '删除课程',
-    content: '删除后可在"设置-回收站"中恢复，确定删除？',
-    confirmColor: '#ef4444',
-    success: (res) => {
-      if (res.confirm) {
-        courseStore.removeCourse(courseId.value)
-        uni.showToast({ title: '已移入回收站', icon: 'none' })
-        setTimeout(() => uni.navigateBack(), 400)
-      }
-    },
-  })
+  dialog
+    .confirm({
+      title: '删除课程',
+      msg: '删除后可在"设置-回收站"中恢复，确定删除？',
+      confirmButtonColor: '#ef4444',
+    })
+    .then(() => {
+      courseStore.removeCourse(courseId.value)
+      toast.show('已移入回收站')
+      setTimeout(() => uni.navigateBack(), 400)
+    })
+    .catch(() => {})
 }
 
 const isCrossDay = computed(() => course.value && course.value.endDate > course.value.startDate)
@@ -233,7 +238,7 @@ const avatarCls = computed(() => avatarGradient(course.value ? (course.value.stu
     </view>
 
     <!-- 底部操作（fixed 固定视口底部） -->
-    <view class="fixed bottom-0 left-0 right-0 z-10 h-15 flex items-center gap-2 border-t border-gray-100 bg-white/95 px-3 backdrop-blur-sm pb-safe">
+    <view class="fixed bottom-0 left-0 right-0 z-10 h-15 flex items-center gap-2 border-t border-gray-100 bg-white/95 px-3 backdrop-blur-sm" :style="{ paddingBottom: `${safeAreaBottom}px` }">
       <wd-button variant="plain" block @click="copyCourse">
         复制
       </wd-button>
@@ -256,6 +261,9 @@ const avatarCls = computed(() => avatarGradient(course.value ? (course.value.stu
       title="选择备注类型"
       @confirm="onNoteTypeConfirm"
     />
+
+    <wd-dialog />
+    <wd-toast />
   </view>
 
   <wd-empty v-else tip="课程不存在或已被删除" />

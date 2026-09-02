@@ -3,6 +3,7 @@ import type { Course } from '@/types/course'
 import { computed, onMounted, ref } from 'vue'
 import { WEEKDAY_LABELS } from '@/types/course'
 import { addWeeks, shortDate, timeToMinutes, today, weekDays, weekStart } from '@/utils/time'
+import { safeAreaBottom, statusBarHeight } from '@/utils/systemInfo'
 
 definePage({
   style: {
@@ -95,10 +96,12 @@ function cColor(c: Course) {
 
 const weekTotal = computed(() => days.value.reduce((n, d) => n + courseStore.coursesOnDay(d).length, 0))
 
-// ---------- 横屏模式（CSS 旋转方案，兼容所有平台） ----------
+// ---------- 横屏模式 ----------
+// H5 端：CSS 旋转 + 全屏 API（浏览器不支持强制锁屏，用 CSS transform 模拟横屏）
+// APP 端：plus.screen.lockOrientation 物理横屏，不需要 CSS 旋转（双重旋转会只显示部分内容）
 const isLandscape = ref(false)
 
-// 获取可用视口尺寸（用于横屏时撑满）
+// H5 端 CSS 旋转所需的视口尺寸
 const viewportW = ref(0)
 const viewportH = ref(0)
 function readViewport() {
@@ -112,10 +115,11 @@ onMounted(() => {
   uni.onWindowResize?.(() => readViewport())
 })
 
-// 横屏时容器的旋转样式
+// H5 端横屏时容器的 CSS 旋转样式（APP 端用物理横屏，不需要 CSS 旋转）
 const landscapeStyle = computed(() => {
   if (!isLandscape.value)
     return {}
+  // #ifdef H5
   // 旋转 90° 后，宽高互换
   const w = viewportW.value
   const h = viewportH.value
@@ -129,6 +133,11 @@ const landscapeStyle = computed(() => {
     'left': `${w}px`,
     'z-index': '1001',
   }
+  // #endif
+  // #ifndef H5
+  // APP 端：物理横屏后页面自然变宽，无需 CSS 旋转
+  return {}
+  // #endif
 })
 
 async function rotateScreen() {
@@ -136,6 +145,15 @@ async function rotateScreen() {
     isLandscape.value = false
     // #ifdef APP-PLUS
     plus.screen.unlockOrientation?.()
+    // #endif
+    // #ifdef H5
+    try {
+      if (document.fullscreenElement)
+        await document.exitFullscreen?.()
+    }
+    catch {
+      // 退出全屏失败也不影响
+    }
     // #endif
     return
   }
@@ -173,7 +191,7 @@ function openEdit() {
     <!-- 横屏模式：旋转容器 -->
     <view :style="landscapeStyle" class="flex flex-col overflow-hidden bg-gray-50">
       <!-- 标题行（与首页统一风格） -->
-      <view class="shrink-0 from-indigo-50 to-white bg-gradient-to-b pt-safe">
+      <view class="shrink-0 from-indigo-50 to-white bg-gradient-to-b" :style="{ paddingTop: `${statusBarHeight}px` }">
         <view class="h-44px flex items-center justify-between px-4">
           <view class="flex items-center gap-2">
             <view class="i-carbon-calendar-heat-map text-lg text-indigo-500" />
@@ -186,9 +204,9 @@ function openEdit() {
       <!-- 工具条：周导航 + 缩放（固定） -->
       <view class="shrink-0 border-b border-gray-100 bg-white px-3 pb-2 pt-2 shadow-sm">
         <view class="flex items-center justify-between">
-          <view class="flex items-center gap-1">
+          <view class="flex items-center gap-0.5">
             <wd-button variant="text" size="small" icon="left" @click="prevWeek" />
-            <view class="min-w-32 text-center text-sm text-gray-800 font-medium">
+            <view class="min-w-20 text-center text-xs text-gray-800 font-medium">
               {{ weekLabel }}
             </view>
             <wd-button variant="text" size="small" icon="right" @click="nextWeek" />
@@ -216,7 +234,7 @@ function openEdit() {
       </view>
 
       <!-- 看板区：双向滚动 -->
-      <view class="pb-tabbar h-0 min-h-0 flex flex-1 flex-col overflow-hidden">
+      <view class="h-0 min-h-0 flex flex-1 flex-col overflow-hidden" :style="{ paddingBottom: `${50 + safeAreaBottom}px` }">
         <scroll-view scroll-x scroll-y class="h-full overflow-hidden">
           <view class="relative overflow-hidden" :style="{ width: `${totalWidth}px` }">
             <!-- 表头 -->
@@ -286,7 +304,7 @@ function openEdit() {
                       {{ c.startTime }}-{{ c.endTime }}
                     </view>
                     <view
-                      class="status-dot absolute right-1 top-1"
+                      class="absolute right-1 top-1 status-dot"
                       :class="c.completed ? 'bg-emerald-400' : 'bg-amber-400'"
                     />
                   </view>

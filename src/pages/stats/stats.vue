@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Course } from '@/types/course'
 import { dayjs, durationHours, weekStart } from '@/utils/time'
+import { safeAreaBottom, statusBarHeight } from '@/utils/systemInfo'
 
 definePage({
   style: {
@@ -235,7 +236,7 @@ const groupOptions = ['student', 'course'] as const
 <template>
   <view class="h-screen flex flex-col overflow-hidden bg-gray-50">
     <!-- 标题行（与首页统一风格） -->
-    <view class="shrink-0 bg-gradient-to-b from-indigo-50 to-white pt-safe">
+    <view class="shrink-0 bg-gradient-to-b from-indigo-50 to-white" :style="{ paddingTop: `${statusBarHeight}px` }">
       <view class="h-44px flex items-center px-4">
         <view class="flex items-center gap-2">
           <view class="i-carbon-chart-bar text-lg text-indigo-500" />
@@ -291,7 +292,7 @@ const groupOptions = ['student', 'course'] as const
     </view>
 
     <!-- 滚动内容区 -->
-    <view class="h-0 min-h-0 flex-1 overflow-y-auto px-3 pb-tabbar pt-3">
+    <view class="h-0 min-h-0 flex-1 overflow-y-auto px-3 pt-3" :style="{ paddingBottom: `${50 + safeAreaBottom}px` }">
       <!-- 汇总卡片 -->
       <view class="overflow-hidden rounded-2xl bg-white shadow-card">
         <view class="bg-indigo-50/80 border-b border-indigo-100 px-4 py-2.5">

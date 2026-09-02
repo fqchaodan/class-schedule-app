@@ -57,6 +57,8 @@ export default defineManifestConfig({
         minSdkVersion: 21,
         targetSdkVersion: 30,
         abiFilters: ['armeabi-v7a', 'arm64-v8a'],
+        // 兼容 Android 10+ 分区存储（Scoped Storage），允许使用旧版外部存储访问模式
+        requestLegacyExternalStorage: true,
         permissions: [
           '<uses-permission android:name="android.permission.CHANGE_NETWORK_STATE"/>',
           '<uses-permission android:name="android.permission.MOUNT_UNMOUNT_FILESYSTEMS"/>',
@@ -73,6 +75,8 @@ export default defineManifestConfig({
           '<uses-permission android:name="android.permission.FLASHLIGHT"/>',
           '<uses-feature android:name="android.hardware.camera"/>',
           '<uses-permission android:name="android.permission.WRITE_SETTINGS"/>',
+          '<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>',
+          '<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>',
         ],
       },
       /* ios打包配置 */

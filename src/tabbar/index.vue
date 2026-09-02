@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // i-carbon-code
 import { customTabbarEnable, needHideNativeTabbar, tabbarCacheEnable } from './config'
+import { safeAreaBottom } from '@/utils/systemInfo'
 import { tabbarList, tabbarStore } from './store'
 import TabbarItem from './TabbarItem.vue'
 
@@ -94,10 +95,15 @@ const inactiveColor = '#9ca3af'
 function getColorByIndex(index: number) {
   return tabbarStore.curIdx === index ? activeColor : inactiveColor
 }
+
 </script>
 
 <template>
-  <view v-if="customTabbarEnable" class="border-and-fixed bg-white/95 backdrop-blur-sm" @touchmove.stop.prevent>
+  <view
+    v-if="customTabbarEnable"
+    class="border-and-fixed tabbar-glass"
+    @touchmove.stop.prevent
+  >
     <view class="h-50px flex items-center">
       <view
         v-for="(item, index) in tabbarList" :key="index"
@@ -114,7 +120,7 @@ function getColorByIndex(index: number) {
         <TabbarItem v-else :item="item" :index="index" class="relative px-3 text-center" />
       </view>
     </view>
-    <view class="pb-safe" />
+    <view :style="{ height: `${safeAreaBottom}px` }" />
   </view>
 </template>
 
@@ -127,6 +133,15 @@ function getColorByIndex(index: number) {
   z-index: 1000;
   border-top: 1px solid #f3f4f6;
   box-sizing: border-box;
+}
+
+/* 毛玻璃效果（全平台生效） */
+.tabbar-glass {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-top: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 -1px 24px rgba(0, 0, 0, 0.06);
 }
 // 中间鼓包的样式
 .bulge {

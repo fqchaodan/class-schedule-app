@@ -6,6 +6,7 @@ import { isCourseConflict } from '@/utils/conflict'
 import { dateToTimestamp, timestampToDate, timeToMinutes, weekStart } from '@/utils/time'
 import { draftsToCourses } from '@/store/template'
 import { useTimeOptions } from '@/hooks/useCourseForm'
+import { useDialog, useToast } from '@wot-ui/ui'
 
 definePage({
   style: {
@@ -15,6 +16,8 @@ definePage({
 
 const templateStore = useTemplateStore()
 const courseStore = useCourseStore()
+const dialog = useDialog()
+const toast = useToast()
 
 // ---------- 分类 ----------
 const tab = ref<'course' | 'cycle'>('course')
@@ -28,15 +31,15 @@ function useForNew(tpl: CourseTemplate) {
 }
 
 function removeCourseTpl(tpl: CourseTemplate) {
-  uni.showModal({
-    title: '删除模板',
-    content: `删除课程模板「${tpl.name}」？已生成的课程不受影响。`,
-    confirmColor: '#ef4444',
-    success: (res) => {
-      if (res.confirm)
-        templateStore.removeTemplate(tpl.id)
-    },
-  })
+  dialog
+    .confirm({
+      title: '删除模板',
+      msg: `删除课程模板「${tpl.name}」？已生成的课程不受影响。`,
+    })
+    .then(() => {
+      templateStore.removeTemplate(tpl.id)
+    })
+    .catch(() => {})
 }
 
 // ---------- 周期模板表单 ----------
@@ -115,19 +118,19 @@ function openEdit(tpl: CourseTemplate) {
 
 function saveForm() {
   if (!name.value.trim()) {
-    uni.showToast({ title: '请填写模板名称', icon: 'none' })
+    toast.error('请填写模板名称')
     return
   }
   if (!studentName.value.trim()) {
-    uni.showToast({ title: '请填写学生姓名', icon: 'none' })
+    toast.error('请填写学生姓名')
     return
   }
   if (weekdays.value.length === 0) {
-    uni.showToast({ title: '请选择重复的星期', icon: 'none' })
+    toast.error('请选择重复的星期')
     return
   }
   if (timeToMinutes(endTime.value) <= timeToMinutes(startTime.value)) {
-    uni.showToast({ title: '结束时间需晚于开始时间', icon: 'none' })
+    toast.error('结束时间需晚于开始时间')
     return
   }
   const weeks = Math.max(1, Math.floor(Number(weeksRaw.value) || 1))
@@ -156,19 +159,19 @@ function saveForm() {
   const drafts = templateStore.buildCourses(tpl)
   courseStore.insertMany(draftsToCourses(drafts))
   showForm.value = false
-  uni.showToast({ title: `已保存并生成 ${drafts.length} 节课程`, icon: 'success' })
+  toast.success(`已保存并生成 ${drafts.length} 节课程`)
 }
 
 function removeTpl(tpl: CourseTemplate) {
-  uni.showModal({
-    title: '删除模板',
-    content: `删除模板「${tpl.name}」？已生成的课程不受影响。`,
-    confirmColor: '#ef4444',
-    success: (res) => {
-      if (res.confirm)
-        templateStore.removeTemplate(tpl.id)
-    },
-  })
+  dialog
+    .confirm({
+      title: '删除模板',
+      msg: `删除模板「${tpl.name}」？已生成的课程不受影响。`,
+    })
+    .then(() => {
+      templateStore.removeTemplate(tpl.id)
+    })
+    .catch(() => {})
 }
 
 // ---------- 生成预览 ----------
@@ -202,7 +205,7 @@ function confirmGenerate() {
   // 先删除该模板之前已生成的课程，避免重复
   courseStore.removeByTemplateId(previewTpl.value.id)
   courseStore.insertMany(draftsToCourses(drafts))
-  uni.showToast({ title: `已生成 ${drafts.length} 节课程`, icon: 'success' })
+  toast.success(`已生成 ${drafts.length} 节课程`)
   previewTpl.value = null
 }
 
@@ -512,5 +515,8 @@ function tplAvatarCls(tpl: CourseTemplate) {
         </view>
       </view>
     </wd-popup>
+
+    <wd-dialog />
+    <wd-toast />
   </view>
 </template>

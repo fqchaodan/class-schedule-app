@@ -160,7 +160,7 @@ export default defineConfig({
     ],
     ['pt-safe', { 'padding-top': 'env(safe-area-inset-top)' }],
     ['pb-safe', { 'padding-bottom': 'env(safe-area-inset-bottom)' }],
-    // tabbar 页面滚动区底部留白：tabbar 高度(50px) + 安全区
+    // tabbar 页面滚动区底部留白：tabbar 高度(50px) + 安全区（H5 fallback，APP 端用内联 style）
     ['pb-tabbar', { 'padding-bottom': 'calc(50px + env(safe-area-inset-bottom))' }],
     // 非 tabbar 页面底部固定操作栏留白：操作栏高度(52px) + 安全区
     ['pb-actionbar', { 'padding-bottom': 'calc(52px + env(safe-area-inset-bottom))' }],

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { ExportFile } from '@/types/course'
 import { buildExportFile, exportFileApp, pickImportFileApp, validateImportFile } from '@/utils/file-io'
+import { safeAreaBottom } from '@/utils/systemInfo'
+import { useDialog, useToast } from '@wot-ui/ui'
 
 definePage({
   style: {
@@ -12,6 +14,8 @@ const courseStore = useCourseStore()
 const templateStore = useTemplateStore()
 const recycleStore = useRecycleStore()
 const appStore = useAppStore()
+const dialog = useDialog()
+const toast = useToast()
 
 const defaultFeeRaw = ref(appStore.settings.defaultFee != null ? String(appStore.settings.defaultFee) : '')
 watch(defaultFeeRaw, (v) => {
@@ -31,35 +35,64 @@ function exportData() {
   a.download = filename
   a.click()
   URL.revokeObjectURL(url)
-  uni.showToast({ title: '已导出', icon: 'success' })
+  toast.success('已导出')
   // #endif
   // #ifdef APP
   uni.showLoading({ title: '导出中...', mask: true })
-  exportFileApp(data, filename)
-    .then((filePath) => {
+  // Android 6.0+ 需要动态请求存储权限
+  const requestStoragePermission = () => {
+    return new Promise<boolean>((resolve) => {
+      if (plus.os.name !== 'Android') {
+        resolve(true)
+        return
+      }
+      const permissions = [
+        'android.permission.WRITE_EXTERNAL_STORAGE',
+        'android.permission.READ_EXTERNAL_STORAGE',
+      ]
+      plus.android.requestPermissions(
+        permissions,
+        () => resolve(true),
+        () => resolve(false),
+      )
+    })
+  }
+  requestStoragePermission().then((granted) => {
+    if (!granted) {
       uni.hideLoading()
-      uni.showModal({
-        title: '导出成功',
-        content: `备份文件已保存到：${filePath}`,
-        showCancel: true,
-        confirmText: '打开目录',
-        success: (res) => {
-          if (res.confirm) {
+      toast.error('需要存储权限才能导出文件')
+      return
+    }
+    exportFileApp(data, filename)
+      .then((filePath) => {
+        uni.hideLoading()
+        const isDownload = filePath.includes('/Download/')
+        const locationHint = isDownload
+          ? `文件已保存到手机「下载」文件夹\n文件名：${filename}`
+          : `备份文件已保存到应用沙盒目录\n文件名：${filename}`
+        dialog
+          .confirm({
+            title: '导出成功',
+            msg: isDownload
+              ? `${locationHint}\n\n可打开手机「文件管理器」→「下载」目录查看。`
+              : locationHint,
+            confirmButtonText: '打开文件',
+          })
+          .then(() => {
             plus.runtime.openFile(filePath)
-          }
-        },
+          })
+          .catch(() => {})
       })
-    })
-    .catch(() => {
-      uni.hideLoading()
-      uni.showToast({ title: '导出失败', icon: 'none' })
-    })
+      .catch(() => {
+        uni.hideLoading()
+        toast.error('导出失败')
+      })
+  })
   // #endif
   // #ifdef MP
-  uni.showModal({
+  dialog.alert({
     title: '暂不支持',
-    content: '小程序端暂不支持文件导出，请使用 H5 或 APP 端导出备份文件。',
-    showCancel: false,
+    msg: '小程序端暂不支持文件导出，请使用 H5 或 APP 端导出备份文件。',
   })
   // #endif
 }
@@ -90,7 +123,7 @@ function pickImportFile() {
         handleImportParsed(raw)
       }
       catch {
-        uni.showToast({ title: '文件不是合法的 JSON', icon: 'none' })
+        toast.error('文件不是合法的 JSON')
       }
     }
     reader.readAsText(file)
@@ -107,15 +140,14 @@ function pickImportFile() {
     .catch((err: Error) => {
       uni.hideLoading()
       if (err.message !== '仅支持 APP 端' && err.message !== '未选择文件') {
-        uni.showToast({ title: err.message || '导入失败', icon: 'none' })
+        toast.error(err.message || '导入失败')
       }
     })
   // #endif
   // #ifdef MP
-  uni.showModal({
+  dialog.alert({
     title: '暂不支持',
-    content: '小程序端暂不支持文件导入，请使用 H5 或 APP 端导入备份文件。',
-    showCancel: false,
+    msg: '小程序端暂不支持文件导入，请使用 H5 或 APP 端导入备份文件。',
   })
   // #endif
 }
@@ -123,10 +155,9 @@ function pickImportFile() {
 function handleImportParsed(raw: unknown) {
   const result = validateImportFile(raw)
   if (!result.ok) {
-    uni.showModal({
+    dialog.alert({
       title: '导入失败',
-      content: (result as { ok: false, error: string }).error,
-      showCancel: false,
+      msg: (result as { ok: false, error: string }).error,
     })
     return
   }
@@ -156,7 +187,7 @@ function doImport(mode: 'merge' | 'append') {
   if (settings && mode === 'merge')
     appStore.updateSettings(settings)
   importPreview.value = null
-  uni.showToast({ title: '导入成功', icon: 'success' })
+  toast.success('导入成功')
 }
 
 function mergeById<T extends { id: string }>(current: T[], incoming: T[]): T[] {
@@ -172,19 +203,19 @@ function closeImportPreview() {
 
 // ---------- 清空 ----------
 function clearAll() {
-  uni.showModal({
-    title: '清空全部数据',
-    content: '将删除所有课程、模板与回收站数据，且不可恢复。确定继续？',
-    confirmColor: '#ef4444',
-    success: (res) => {
-      if (res.confirm) {
-        courseStore.clearAll()
-        templateStore.templates = []
-        recycleStore.clear()
-        uni.showToast({ title: '已清空', icon: 'none' })
-      }
-    },
-  })
+  dialog
+    .confirm({
+      title: '清空全部数据',
+      msg: '将删除所有课程、模板与回收站数据，且不可恢复。确定继续？',
+      confirmButtonColor: '#ef4444',
+    })
+    .then(() => {
+      courseStore.clearAll()
+      templateStore.templates = []
+      recycleStore.clear()
+      toast.show('已清空')
+    })
+    .catch(() => {})
 }
 
 const courseCount = computed(() => courseStore.courses.length)
@@ -202,7 +233,7 @@ function goRecycle() {
     <!-- 自定义导航栏 -->
     <NavBar title="设置" />
     <!-- 滚动内容区 -->
-    <view class="h-0 min-h-0 flex-1 overflow-y-auto px-3 pb-safe">
+    <view class="h-0 min-h-0 flex-1 overflow-y-auto px-3" :style="{ paddingBottom: `${safeAreaBottom}px` }">
       <!-- 数据 -->
       <view class="mt-4">
         <view class="section-label">
@@ -219,7 +250,7 @@ function goRecycle() {
             </template>
           </wd-cell>
           <wd-cell
-            title="从文件导入（导入前自动校验）"
+            title="从文件导入"
             is-link
             @click="pickImportFile"
           >
@@ -309,7 +340,7 @@ function goRecycle() {
       position="center"
       @close="closeImportPreview"
     >
-      <view class="w-320px rounded-2xl bg-white p-5">
+      <view class="max-w-360px w-85vw rounded-2xl bg-white p-5">
         <view class="text-base text-gray-900 font-medium">
           导入预览
         </view>
@@ -324,18 +355,21 @@ function goRecycle() {
             注意：有 {{ importPreview?.conflictCount }} 条课程与现有课程时间冲突，仍会按选择的方式导入
           </view>
         </view>
-        <view class="mt-4 flex gap-3">
-          <wd-button variant="plain" block @click="closeImportPreview">
-            取消
-          </wd-button>
-          <wd-button block type="primary" @click="doImport('append')">
-            仅追加
-          </wd-button>
+        <view class="mt-4 flex flex-col gap-2">
           <wd-button block type="primary" @click="doImport('merge')">
             合并覆盖
+          </wd-button>
+          <wd-button block @click="doImport('append')">
+            仅追加
+          </wd-button>
+          <wd-button block variant="plain" @click="closeImportPreview">
+            取消
           </wd-button>
         </view>
       </view>
     </wd-popup>
+
+    <wd-dialog />
+    <wd-toast />
   </view>
 </template>

@@ -42,6 +42,15 @@ function toggleStatus() {
 function togglePaid() {
   courseStore.togglePaid(props.course.id)
 }
+
+/** 包裹 view 的 click.stop：APP 端 wd-tag 组件级 @click.stop 不可靠，
+ *  改用原生 view @click.stop 阻断冒泡，再委托到对应函数 */
+function onPaidClick() {
+  togglePaid()
+}
+function onStatusClick() {
+  toggleStatus()
+}
 </script>
 
 <template>
@@ -85,22 +94,24 @@ function togglePaid() {
           ¥{{ course.fee }}
         </text>
         <view class="flex items-center gap-1.5">
-          <wd-tag
-            :type="course.paid ? 'success' : 'default'"
-            size="small"
-            round
-            @click.stop="togglePaid"
-          >
-            {{ course.paid ? '已收费' : '未收费' }}
-          </wd-tag>
-          <wd-tag
-            :type="course.completed ? 'success' : 'warning'"
-            size="small"
-            round
-            @click.stop="toggleStatus"
-          >
-            {{ course.completed ? '已上' : '未上' }}
-          </wd-tag>
+          <view @click.stop="onPaidClick">
+            <wd-tag
+              :type="course.paid ? 'success' : 'default'"
+              size="small"
+              round
+            >
+              {{ course.paid ? '已收费' : '未收费' }}
+            </wd-tag>
+          </view>
+          <view @click.stop="onStatusClick">
+            <wd-tag
+              :type="course.completed ? 'success' : 'warning'"
+              size="small"
+              round
+            >
+              {{ course.completed ? '已上' : '未上' }}
+            </wd-tag>
+          </view>
         </view>
         <view v-if="noteCount > 0" class="flex items-center gap-0.5 text-2xs text-indigo-400">
           <view class="i-carbon-notebook text-sm" /> {{ noteCount }}

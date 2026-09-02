@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Course } from '@/types/course'
 import { addDays, addWeeks, longDate, shortDate, today, weekDays, weekStart } from '@/utils/time'
+import { safeAreaBottom, statusBarHeight } from '@/utils/systemInfo'
 
 definePage({
   type: 'home',
@@ -81,7 +82,7 @@ const modeOptions = [
 <template>
   <view class="h-screen flex flex-col overflow-hidden bg-gray-50">
     <!-- 顶部工具条（固定，不随内容滚动）：浅染色渐变，柔和不刺眼 -->
-    <view class="shrink-0 bg-gradient-to-b from-indigo-50 to-white pt-safe">
+    <view class="shrink-0 bg-gradient-to-b from-indigo-50 to-white" :style="{ paddingTop: `${statusBarHeight}px` }">
       <!-- 标题行（与 NavBar 统一 44px 高度） -->
       <view class="h-44px flex items-center justify-between px-4">
         <view class="flex items-center gap-2">
@@ -142,7 +143,7 @@ const modeOptions = [
     </view>
 
     <!-- 滚动内容区 -->
-    <view class="h-0 min-h-0 flex-1 overflow-y-auto px-3 pb-tabbar pt-3">
+    <view class="h-0 min-h-0 flex-1 overflow-y-auto px-3 pt-3" :style="{ paddingBottom: `${50 + safeAreaBottom}px` }">
       <!-- 周视图：按天分组 -->
       <view v-if="mode === 'week'">
         <view v-for="day in days" :key="day" class="mb-4">

@@ -2,6 +2,8 @@
 import type { Course, CourseTemplate } from '@/types/course'
 import { useCourseForm, useTimeOptions } from '@/hooks/useCourseForm'
 import { dateToTimestamp, timestampToDate } from '@/utils/time'
+import { safeAreaBottom } from '@/utils/systemInfo'
+import { useDialog, useToast } from '@wot-ui/ui'
 
 definePage({
   style: {
@@ -12,6 +14,9 @@ definePage({
 const courseStore = useCourseStore()
 const templateStore = useTemplateStore()
 const appStore = useAppStore()
+
+const dialog = useDialog()
+const toast = useToast()
 
 const { timeColumns, timeToArr, arrToTime } = useTimeOptions()
 const {
@@ -73,7 +78,7 @@ function onTemplateConfirm({ value }: { value: number }) {
   const tpl = courseTemplates.value[value]
   if (tpl) {
     applyTemplate(tpl)
-    uni.showToast({ title: '已填充模板，可修改后保存', icon: 'none' })
+    toast.show('已填充模板，可修改后保存')
   }
   showTemplatePicker.value = false
 }
@@ -127,7 +132,7 @@ const pendingConflicts = ref<Course[]>([])
 function save() {
   const err = validate()
   if (err) {
-    uni.showToast({ title: err, icon: 'none' })
+    toast.error(err)
     return
   }
   const draft = buildDraft()
@@ -154,7 +159,7 @@ function doSave(force: boolean) {
     ok = true
   }
   if (ok) {
-    uni.showToast({ title: '已保存', icon: 'success' })
+    toast.success('已保存')
     setTimeout(() => uni.navigateBack(), 400)
   }
 }
@@ -162,23 +167,25 @@ function doSave(force: boolean) {
 function remove() {
   if (!editId.value)
     return
-  uni.showModal({
-    title: '删除课程',
-    content: '删除后可在"设置-回收站"中恢复，确定删除？',
-    confirmColor: '#ef4444',
-    success: (res) => {
-      if (res.confirm && editId.value) {
+  dialog
+    .confirm({
+      title: '删除课程',
+      msg: '删除后可在"设置-回收站"中恢复，确定删除？',
+      confirmButtonColor: '#ef4444',
+    })
+    .then(() => {
+      if (editId.value) {
         courseStore.removeCourse(editId.value)
-        uni.showToast({ title: '已移入回收站', icon: 'none' })
+        toast.show('已移入回收站')
         setTimeout(() => uni.navigateBack(), 400)
       }
-    },
-  })
+    })
+    .catch(() => {})
 }
 
 function saveAsTemplate() {
   if (!studentName.value.trim()) {
-    uni.showToast({ title: '请先填写学生姓名', icon: 'none' })
+    toast.error('请先填写学生姓名')
     return
   }
   const tpl = templateStore.saveCourseAsTemplate({
@@ -189,7 +196,7 @@ function saveAsTemplate() {
     endTime: endTime.value,
     fee: feeRaw.value === '' ? undefined : Number(feeRaw.value),
   })
-  uni.showToast({ title: `已存为模板「${tpl.name}」`, icon: 'success' })
+  toast.success(`已存为模板「${tpl.name}」`)
 }
 
 // ---------- 时间选择器 v-model（双列：小时+分钟） ----------
@@ -345,7 +352,7 @@ const selectedTemplateArr = computed({
     </view>
 
     <!-- 底部操作（fixed 固定视口底部） -->
-    <view class="fixed bottom-0 left-0 right-0 z-10 h-15 flex items-center gap-2 border-t border-gray-100 bg-white/95 px-3 backdrop-blur-sm pb-safe">
+    <view class="fixed bottom-0 left-0 right-0 z-10 h-15 flex items-center gap-2 border-t border-gray-100 bg-white/95 px-3 backdrop-blur-sm" :style="{ paddingBottom: `${safeAreaBottom}px` }">
       <wd-button
         v-if="isEdit"
         type="danger"
@@ -420,5 +427,8 @@ const selectedTemplateArr = computed({
       @confirm="doSave(true)"
       @cancel="conflictDialogVisible = false"
     />
+
+    <wd-dialog />
+    <wd-toast />
   </view>
 </template>

@@ -2,6 +2,8 @@
 import type { Course } from '@/types/course'
 import { avatarGradient } from '@/utils/avatar'
 import { durationHours } from '@/utils/time'
+import { safeAreaBottom } from '@/utils/systemInfo'
+import { useDialog, useToast } from '@wot-ui/ui'
 
 definePage({
   style: {
@@ -11,6 +13,8 @@ definePage({
 
 const recycleStore = useRecycleStore()
 const courseStore = useCourseStore()
+const dialog = useDialog()
+const toast = useToast()
 
 const items = computed(() =>
   [...recycleStore.items].sort((a, b) => b.deletedAt - a.deletedAt),
@@ -30,17 +34,18 @@ function restore(item: { course: Course }) {
   const doRestore = () => {
     courseStore.insertMany([item.course])
     recycleStore.purge(item.course.id)
-    uni.showToast({ title: '已恢复', icon: 'success' })
+    toast.success('已恢复')
   }
   if (conflicts.length > 0) {
-    uni.showModal({
-      title: '时间冲突提醒',
-      content: `恢复后与 ${conflicts.length} 条现有课程时间冲突，仍要恢复？`,
-      success: (res) => {
-        if (res.confirm)
-          doRestore()
-      },
-    })
+    dialog
+      .confirm({
+        title: '时间冲突提醒',
+        msg: `恢复后与 ${conflicts.length} 条现有课程时间冲突，仍要恢复？`,
+      })
+      .then(() => {
+        doRestore()
+      })
+      .catch(() => {})
   }
   else {
     doRestore()
@@ -48,33 +53,33 @@ function restore(item: { course: Course }) {
 }
 
 function purge(item: { course: Course }) {
-  uni.showModal({
-    title: '彻底删除',
-    content: `彻底删除「${titleOf(item.course)}」？此操作不可恢复。`,
-    confirmColor: '#ef4444',
-    success: (res) => {
-      if (res.confirm) {
-        recycleStore.purge(item.course.id)
-        uni.showToast({ title: '已删除', icon: 'none' })
-      }
-    },
-  })
+  dialog
+    .confirm({
+      title: '彻底删除',
+      msg: `彻底删除「${titleOf(item.course)}」？此操作不可恢复。`,
+      confirmButtonColor: '#ef4444',
+    })
+    .then(() => {
+      recycleStore.purge(item.course.id)
+      toast.show('已删除')
+    })
+    .catch(() => {})
 }
 
 function clearAll() {
   if (recycleStore.items.length === 0)
     return
-  uni.showModal({
-    title: '清空回收站',
-    content: `彻底删除回收站全部 ${recycleStore.items.length} 条课程？此操作不可恢复。`,
-    confirmColor: '#ef4444',
-    success: (res) => {
-      if (res.confirm) {
-        recycleStore.clear()
-        uni.showToast({ title: '已清空', icon: 'none' })
-      }
-    },
-  })
+  dialog
+    .confirm({
+      title: '清空回收站',
+      msg: `彻底删除回收站全部 ${recycleStore.items.length} 条课程？此操作不可恢复。`,
+      confirmButtonColor: '#ef4444',
+    })
+    .then(() => {
+      recycleStore.clear()
+      toast.show('已清空')
+    })
+    .catch(() => {})
 }
 
 function fmtTime(ts: number) {
@@ -87,7 +92,7 @@ function fmtTime(ts: number) {
     <!-- 自定义导航栏 -->
     <NavBar title="回收站" />
     <!-- 滚动内容区 -->
-    <scroll-view scroll-y class="h-0 min-h-0 flex-1 px-3 pt-3 pb-safe">
+    <scroll-view scroll-y class="h-0 min-h-0 flex-1 px-3 pt-3" :style="{ paddingBottom: `${safeAreaBottom}px` }">
       <wd-empty
         v-if="items.length === 0"
         tip="回收站是空的"
@@ -133,5 +138,8 @@ function fmtTime(ts: number) {
         </view>
       </template>
     </scroll-view>
+
+    <wd-dialog />
+    <wd-toast />
   </view>
 </template>

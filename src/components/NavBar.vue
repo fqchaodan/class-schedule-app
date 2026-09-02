@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { statusBarHeight } from '@/utils/systemInfo'
+
 /**
  * 自定义导航栏（配合 navigationStyle: 'custom' 使用）
- * - pt-safe 自动适配状态栏
+ * - 使用 JS 获取 statusBarHeight，兼容 APP/H5/小程序
  * - 左侧返回按钮（可隐藏）
  * - 居中标题
  * - 右侧插槽
@@ -29,8 +31,8 @@ function goBack() {
 
 <template>
   <view
-    class="shrink-0 flex items-center bg-white border-b border-gray-100 px-3 pt-safe"
-    style="height: calc(env(safe-area-inset-top) + 44px);"
+    class="shrink-0 flex items-center bg-white border-b border-gray-100 px-3"
+    :style="{ paddingTop: `${statusBarHeight}px`, height: `${statusBarHeight + 44}px` }"
   >
     <!-- 左侧：返回按钮 -->
     <view class="flex w-12 shrink-0 items-center">
