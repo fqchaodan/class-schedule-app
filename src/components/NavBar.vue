@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { statusBarHeight } from '@/utils/systemInfo'
+import { lightTap } from '@/utils/feedback'
 
 /**
  * 自定义导航栏（配合 navigationStyle: 'custom' 使用）
@@ -18,6 +19,7 @@ withDefaults(defineProps<{
 })
 
 function goBack() {
+  lightTap()
   const pages = getCurrentPages()
   if (pages.length > 1) {
     uni.navigateBack()

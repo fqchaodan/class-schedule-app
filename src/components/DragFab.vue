@@ -5,6 +5,8 @@
  * - 单击（未发生拖拽）时触发 @click
  * - 使用 position: fixed + touch 事件实现，兼容 H5 / 小程序 / APP
  */
+import { lightTap } from '@/utils/feedback'
+
 const emit = defineEmits<{
   click: []
 }>()
@@ -85,12 +87,34 @@ function onTouchEnd() {
   }
   else {
     // 未拖拽 → 触发点击
+    lightTap()
     emit('click')
   }
 }
 
 onMounted(() => {
   initPosition()
+})
+
+// APP 端旋转屏幕时重新计算位置
+function onResize() {
+  if (inited.value) {
+    const info = uni.getWindowInfo()
+    vw = info.windowWidth
+    vh = info.windowHeight
+    // 保持相对位置比例，吸附到最近的边缘
+    const center = x.value + SIZE / 2
+    if (center < vw / 2)
+      x.value = EDGE_MARGIN
+    else
+      x.value = vw - SIZE - EDGE_MARGIN
+    y.value = Math.max(0, Math.min(y.value, vh - SIZE))
+  }
+}
+uni.onWindowResize?.(onResize)
+
+onUnmounted(() => {
+  uni.offWindowResize?.(onResize)
 })
 </script>
 

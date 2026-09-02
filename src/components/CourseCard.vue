@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import type { Course } from '@/types/course'
 import { avatarGradient } from '@/utils/avatar'
+import { lightTap } from '@/utils/feedback'
 import { durationHours } from '@/utils/time'
+import { useDialog, useToast } from '@wot-ui/ui'
 
 const props = withDefaults(defineProps<{
   course: Course
@@ -9,16 +11,69 @@ const props = withDefaults(defineProps<{
   showDate?: boolean
   /** 冲突标记 */
   conflict?: boolean
+  /** 是否禁用长按删除 */
+  disableDelete?: boolean
 }>(), {
   showDate: false,
   conflict: false,
+  disableDelete: false,
 })
 
 const emit = defineEmits<{
   click: [course: Course]
+  delete: [course: Course]
 }>()
 
+const dialog = useDialog()
+const toast = useToast()
 const courseStore = useCourseStore()
+
+/** 长按定时器 */
+let longPressTimer: ReturnType<typeof setTimeout> | null = null
+const LONG_PRESS_DELAY = 500
+
+function clearLongPressTimer() {
+  if (longPressTimer) {
+    clearTimeout(longPressTimer)
+    longPressTimer = null
+  }
+}
+
+/** 长按事件（APP/H5 均可用 touchstart/touchend 模拟） */
+function onTouchStart() {
+  if (props.disableDelete)
+    return
+  clearLongPressTimer()
+  longPressTimer = setTimeout(() => {
+    lightTap()
+    confirmDelete()
+  }, LONG_PRESS_DELAY)
+}
+
+function onTouchEnd() {
+  clearLongPressTimer()
+}
+
+function onTouchMove() {
+  clearLongPressTimer()
+}
+
+/** 删除确认对话框 */
+function confirmDelete() {
+  const name = props.course.studentName || props.course.name || '此课程'
+  dialog
+    .confirm({
+      title: '删除课程',
+      msg: `确定删除「${name}」？删除后可在回收站恢复。`,
+      confirmButtonColor: '#ef4444',
+    })
+    .then(() => {
+      courseStore.removeCourse(props.course.id)
+      toast.show('已移入回收站')
+      emit('delete', props.course)
+    })
+    .catch(() => {})
+}
 
 const noteCount = computed(() => props.course.notes.length)
 const hours = computed(() => durationHours(props.course.startTime, props.course.endTime))
@@ -35,11 +90,13 @@ const avatarCls = computed(() => avatarGradient(title.value))
 
 /** 手动切换已上/未上（点击徽标，不触发展开详情） */
 function toggleStatus() {
+  lightTap()
   courseStore.toggleCompleted(props.course.id)
 }
 
 /** 手动切换已收费/未收费（点击徽标，不触发展开详情） */
 function togglePaid() {
+  lightTap()
   courseStore.togglePaid(props.course.id)
 }
 
@@ -58,6 +115,9 @@ function onStatusClick() {
     class="mb-2 w-full overflow-hidden rounded-2xl bg-white shadow-card active:bg-gray-50 transition-colors border-l-4"
     :class="course.completed ? 'border-l-emerald-400' : 'border-l-amber-400'"
     @click="emit('click', course)"
+    @touchstart="onTouchStart"
+    @touchend="onTouchEnd"
+    @touchmove="onTouchMove"
   >
     <view class="flex items-center gap-3 p-3">
       <!-- 学生头像 -->
@@ -119,4 +179,7 @@ function onStatusClick() {
       </view>
     </view>
   </view>
+
+  <wd-dialog />
+  <wd-toast />
 </template>
