@@ -95,7 +95,6 @@ export function requestNotificationPermission(): Promise<boolean> {
       }
 
       // 请求权限
-      const REQUEST_CODE = 200
       plus.android.requestPermissions(
         ['android.permission.POST_NOTIFICATIONS'],
         () => resolve(true),
@@ -114,6 +113,90 @@ export function requestNotificationPermission(): Promise<boolean> {
 }
 
 /**
+ * 获取应用图标 resource id
+ * 通过 R.id.app_icon 获取，兼容不同 uni-app 版本
+ */
+function getAppIconResId(): number {
+  // #ifdef APP-PLUS
+  try {
+    const mainActivity = plus.android.runtimeMainActivity()
+    const packageName = mainActivity.getPackageName()
+    const resources = mainActivity.getResources()
+    const R_id = plus.android.importClass(`${packageName}.R$id`)
+    // 尝试获取 app_icon，失败则用默认值
+    if (R_id) {
+      const fields = R_id.getFields()
+      for (let i = 0; i < fields.length; i++) {
+        const field = fields[i]
+        const name = String(field.getName())
+        if (name === 'app_icon' || name === 'icon') {
+          return field.getInt(null)
+        }
+      }
+    }
+    // 降级：通过资源名查找
+    const R_drawable = plus.android.importClass(`${packageName}.R$drawable`)
+    if (R_drawable) {
+      const drawFields = R_drawable.getFields()
+      for (let i = 0; i < drawFields.length; i++) {
+        const field = drawFields[i]
+        const name = String(field.getName())
+        if (name === 'icon' || name === 'app_icon' || name === 'ic_launcher') {
+          return field.getInt(null)
+        }
+      }
+    }
+  }
+  catch {
+    // 忽略，返回默认值
+  }
+  // #endif
+  return 0x7f020001
+}
+
+/**
+ * 构建点击通知后打开应用的 PendingIntent
+ *
+ * 不使用 getPackageManager().getLaunchIntentForPackage()，
+ * 因为该方法在 plus.android 桥接下存在方法代理丢失问题（方法链丢失）。
+ * 改用 Intent.setClassName() 显式指定启动 Activity。
+ */
+function buildLaunchPendingIntent(notificationId: number): any {
+  // #ifdef APP-PLUS
+  try {
+    const mainActivity = plus.android.runtimeMainActivity()
+    const Intent = plus.android.importClass('android.content.Intent')
+    const PendingIntent = plus.android.importClass('android.app.PendingIntent')
+
+    // 获取应用包名
+    const packageName = mainActivity.getPackageName()
+
+    // 获取主 Activity 类名（通常是 io.dcloud.PandoraEntry 或类似）
+    const mainActivityClass = mainActivity.getClass()
+    const mainActivityName = mainActivityClass.getName()
+
+    // 用 setClassName 显式构建启动 Intent，绕过 getLaunchIntentForPackage
+    const intent = new Intent(Intent.ACTION_MAIN)
+    intent.addCategory(Intent.CATEGORY_LAUNCHER)
+    intent.setClassName(packageName, mainActivityName)
+    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+
+    // Android 12+ (SDK 31) 要求 PendingIntent 必须指定 mutability flag
+    // FLAG_IMMUTABLE = 0x04000000 (1 << 6 = 64, 但实际值是 67108864)
+    const FLAG_IMMUTABLE = 0x04000000
+    return PendingIntent.getActivity(mainActivity, notificationId, intent, FLAG_IMMUTABLE)
+  }
+  catch (e) {
+    console.error('构建 PendingIntent 失败', e)
+    return null
+  }
+  // #endif
+  // #ifndef APP-PLUS
+  return null
+  // #endif
+}
+
+/**
  * 发送单条系统通知
  */
 function sendNotification(title: string, content: string, notificationId: number) {
@@ -126,37 +209,49 @@ function sendNotification(title: string, content: string, notificationId: number
     const Context = plus.android.importClass('android.content.Context')
     const notificationManager = mainActivity.getSystemService(Context.NOTIFICATION_SERVICE)
 
-    // 构建通知
+    // 构建点击 Intent
+    const pendingIntent = buildLaunchPendingIntent(notificationId)
+
+    // 获取应用图标 resource id
+    const iconResId = getAppIconResId()
+
+    // 尝试使用 NotificationCompat（AndroidX）
     const NotificationCompat = plus.android.importClass('androidx.core.app.NotificationCompat')
-    if (!NotificationCompat) {
-      // 尝试旧版 API
-      const Notification = plus.android.importClass('android.app.Notification')
-      const notification = new Notification()
-      notification.defaults = -1 // 全部默认（声音+振动+灯光）
-      const Pi = plus.android.importClass('android.app.PendingIntent')
-      const intent = mainActivity.getPackageManager().getLaunchIntentForPackage(mainActivity.getPackageName())
-      const pendingIntent = Pi.getActivity(mainActivity, 0, intent, 0)
-      notification.setLatestEventInfo(mainActivity, title, content, pendingIntent)
+    if (NotificationCompat) {
+      const builder = new NotificationCompat.Builder(mainActivity, CHANNEL_ID)
+        .setContentTitle(title)
+        .setContentText(content)
+        .setSmallIcon(iconResId)
+        .setAutoCancel(true)
+        .setDefaults(-1) // 声音 + 振动 + 灯光
+
+      if (pendingIntent)
+        builder.setContentIntent(pendingIntent)
+
+      const notification = builder.build()
       notificationManager.notify(notificationId, notification)
       return
     }
 
-    const builder = new NotificationCompat.Builder(mainActivity, CHANNEL_ID)
-      .setContentTitle(title)
-      .setContentText(content)
-      .setSmallIcon(0x7f020001) // app icon resource id（uni-app 默认图标）
-      .setAutoCancel(true)
-      .setDefaults(-1) // 声音 + 振动 + 灯光
+    // 降级：旧版 Notification API（Android 7.x 及以下）
+    const Notification = plus.android.importClass('android.app.Notification')
+    if (Notification) {
+      const notification = new Notification()
+      notification.defaults = -1 // 全部默认（声音+振动+灯光）
+      try {
+        notification.icon = iconResId
+        notification.tickerText = title
+      }
+      catch {
+        // 忽略属性设置失败
+      }
+      if (pendingIntent && notification.setLatestEventInfo)
+        notification.setLatestEventInfo(mainActivity, title, content, pendingIntent)
+      notificationManager.notify(notificationId, notification)
+      return
+    }
 
-    // 设置点击后打开应用
-    const Intent = plus.android.importClass('android.content.Intent')
-    const PendingIntent = plus.android.importClass('android.app.PendingIntent')
-    const launchIntent = mainActivity.getPackageManager().getLaunchIntentForPackage(mainActivity.getPackageName())
-    const pendingIntent = PendingIntent.getActivity(mainActivity, notificationId, launchIntent, 0)
-    builder.setContentIntent(pendingIntent)
-
-    const notification = builder.build()
-    notificationManager.notify(notificationId, notification)
+    console.warn('无法构建通知：NotificationCompat 和 Notification 均不可用')
   }
   catch (e) {
     console.error('发送通知失败', e)
@@ -256,6 +351,9 @@ export function startForegroundService() {
     const Context = plus.android.importClass('android.content.Context')
     const notificationManager = mainActivity.getSystemService(Context.NOTIFICATION_SERVICE)
 
+    const iconResId = getAppIconResId()
+    const pendingIntent = buildLaunchPendingIntent(FOREGROUND_NOTIFICATION_ID)
+
     // 尝试使用 NotificationCompat
     const NotificationCompat = plus.android.importClass('androidx.core.app.NotificationCompat')
 
@@ -265,25 +363,19 @@ export function startForegroundService() {
       const builder = new NotificationCompat.Builder(mainActivity, CHANNEL_ID)
         .setContentTitle('课程表运行中')
         .setContentText('正在为您监测课程安排')
-        .setSmallIcon(0x7f020001)
+        .setSmallIcon(iconResId)
         .setOngoing(true) // 不可滑动删除
         .setPriority(-1) // PRIORITY_LOW，不发出声音
+
+      if (pendingIntent)
+        builder.setContentIntent(pendingIntent)
 
       foregroundNotification = builder.build()
     }
 
-    if (foregroundNotification && mainActivity.startForeground) {
-      // 尝试通过 Activity 启动前台服务
-      try {
-        const Intent = plus.android.importClass('android.content.Intent')
-        const ServiceIntent = new Intent(mainActivity, null)
-        // 设置前台服务
-        mainActivity.startForeground(FOREGROUND_NOTIFICATION_ID, foregroundNotification)
-      }
-      catch {
-        // 某些 Android 版本不支持 Activity.startForeground，使用 NotificationManager 持续显示
-        notificationManager.notify(FOREGROUND_NOTIFICATION_ID, foregroundNotification)
-      }
+    if (foregroundNotification) {
+      // 使用 NotificationManager 持续显示（最可靠的方案）
+      notificationManager.notify(FOREGROUND_NOTIFICATION_ID, foregroundNotification)
     }
     else {
       // 降级方案：使用普通持续通知
@@ -312,9 +404,6 @@ export function stopForegroundService() {
     const notificationManager = mainActivity.getSystemService(Context.NOTIFICATION_SERVICE)
     notificationManager.cancel(FOREGROUND_NOTIFICATION_ID)
 
-    if (mainActivity.stopForeground) {
-      mainActivity.stopForeground(true)
-    }
     console.log('前台服务已停止')
   }
   catch (e) {

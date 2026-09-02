@@ -1,5 +1,16 @@
 # 更新日志
 
+## 0.1.2 (2026-09-02)
+
+### Bug 修复
+
+#### 通知发送失败修复
+- 修复 `sendNotification()` 中 `getPackageManager().getLaunchIntentForPackage()` 方法链在 plus.android 桥接下丢失的问题
+- 新增 `buildLaunchPendingIntent()`：改用 `Intent.setClassName()` 显式构建启动 Intent，绕过链式调用限制
+- 新增 `getAppIconResId()`：通过反射 `R$id` / `R$drawable` 动态查找应用图标，替代硬编码 resource id
+- 修复 `startForegroundService()` 中不存在的 `mainActivity.startForeground` 调用，统一使用 `notificationManager.notify()`
+- PendingIntent 使用 `FLAG_IMMUTABLE` 满足 Android 12+ 强制要求
+
 ## 0.1.1 (2026-09-02)
 
 ### 新增功能
