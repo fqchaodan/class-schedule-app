@@ -1,11 +1,11 @@
 import { minutesToTime, timeToMinutes, today } from '@/utils/time'
 import { computed, ref } from 'vue'
 
-/** 时间选择器选项：00:00 - 24:00，5 分钟一档 */
+/** 时间选择器选项：00:00 - 24:00，1 分钟一档 */
 export function useTimeOptions() {
   const timeOptions = computed(() => {
     const list: string[] = []
-    for (let m = 0; m <= 1440; m += 5)
+    for (let m = 0; m <= 1440; m += 1)
       list.push(minutesToTime(m))
     return list
   })
@@ -18,10 +18,10 @@ export function useTimeOptions() {
     return list
   })
 
-  /** 分钟列表（00,05,10...55） */
+  /** 分钟列表（00,01,02...59） */
   const minuteOptions = computed(() => {
     const list: string[] = []
-    for (let m = 0; m <= 55; m += 5)
+    for (let m = 0; m <= 59; m += 1)
       list.push(String(m).padStart(2, '0'))
     return list
   })

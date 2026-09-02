@@ -3,7 +3,7 @@ import { genId } from '@/types/course'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { findConflicts } from '@/utils/conflict'
-import { courseCoversDay } from '@/utils/time'
+import { addDays, courseCoversDay } from '@/utils/time'
 import { useRecycleStore } from './recycle'
 
 export type { CourseDraft }
@@ -151,11 +151,7 @@ export const useCourseStore = defineStore(
       const source = getById(id)
       if (!source)
         return null
-      const shift = (d: string) => {
-        const dt = new Date(`${d}T00:00:00`)
-        dt.setDate(dt.getDate() + 7)
-        return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
-      }
+      const shift = (d: string) => addDays(d, 7)
       return {
         studentName: source.studentName,
         name: source.name,
