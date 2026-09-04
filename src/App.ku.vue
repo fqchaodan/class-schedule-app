@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import FgTabbar from '@/tabbar/index.vue'
+import SideRail from '@/tabbar/SideRail.vue'
+import { showSideRail } from '@/store/device'
 import { isPageTabbar } from './tabbar/store'
 import { currRoute } from './utils'
 
@@ -35,6 +37,7 @@ defineExpose({
 
     <KuRootView />
 
-    <FgTabbar v-if="isCurrentPageTabbar" />
+    <FgTabbar v-if="isCurrentPageTabbar && !showSideRail" />
+    <SideRail v-if="showSideRail" />
   </view>
 </template>

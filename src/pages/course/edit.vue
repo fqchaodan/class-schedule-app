@@ -4,6 +4,7 @@ import { useCourseForm, useTimeOptions } from '@/hooks/useCourseForm'
 import { dateToTimestamp, timestampToDate } from '@/utils/time'
 import { safeAreaBottom } from '@/utils/systemInfo'
 import { lightTap, successTap } from '@/utils/feedback'
+import { isTablet } from '@/store/device'
 import { useDialog, useToast } from '@wot-ui/ui'
 
 definePage({
@@ -278,7 +279,7 @@ onUnmounted(() => {
     <!-- 自定义导航栏 -->
     <NavBar :title="isEdit ? '编辑课程' : isCopyMode ? '复制课程' : '新增课程'" />
     <!-- 滚动内容区（底部留出固定操作条的高度） -->
-    <view class="pb-actionbar h-0 min-h-0 flex-1 overflow-y-auto px-0 pt-3">
+    <view class="h-0 min-h-0 flex-1 overflow-y-auto px-0 pt-3 pb-actionbar" :class="isTablet ? 'mx-auto max-w-180' : ''">
       <!-- 模板选择器 -->
       <wd-cell-group v-if="courseTemplates.length > 0" border rounded class="mx-3">
         <wd-cell

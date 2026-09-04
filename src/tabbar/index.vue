@@ -1,11 +1,11 @@
 <script setup lang="ts">
 // i-carbon-code
-import { customTabbarEnable, needHideNativeTabbar, tabbarCacheEnable } from './config'
+import { customTabbarEnable, needHideNativeTabbar } from './config'
 import { safeAreaBottom } from '@/utils/systemInfo'
-import { lightTap } from '@/utils/feedback'
 import { isLandscape } from '@/store/landscape'
 import { tabbarList, tabbarStore } from './store'
 import TabbarItem from './TabbarItem.vue'
+import { navigateToTab } from './nav'
 
 // #ifdef MP-WEIXIN
 // 将自定义节点设置成虚拟的（去掉自定义组件包裹层），更加接近Vue组件的表现，能更好的使用flex属性
@@ -25,42 +25,11 @@ function handleClickBulge() {
 }
 
 function handleClick(index: number) {
-  // 当前高亮和真实页面都已经是目标 tab 时，不重复跳转
-  if (index === tabbarStore.curIdx && tabbarStore.isCurrentRouteTabbarItem(index)) {
-    return
-  }
-  lightTap()
-  const list = tabbarList.value
-  if (!list[index]) {
-    return
-  }
-  if (list[index].isBulge) {
+  if (tabbarList.value[index]?.isBulge) {
     handleClickBulge()
     return
   }
-  const url = list[index].pagePath
-  const prevIdx = tabbarStore.curIdx
-  tabbarStore.setCurIdx(index)
-  const syncTabbarAfterNavigation = () => {
-    tabbarStore.syncCurIdxByCurrentPageAsync()
-  }
-  const restoreTabbarWhenNavigationFailed = () => {
-    tabbarStore.setCurIdx(prevIdx)
-  }
-  if (tabbarCacheEnable) {
-    uni.switchTab({
-      url,
-      success: syncTabbarAfterNavigation,
-      fail: restoreTabbarWhenNavigationFailed,
-    })
-  }
-  else {
-    uni.navigateTo({
-      url,
-      success: syncTabbarAfterNavigation,
-      fail: restoreTabbarWhenNavigationFailed,
-    })
-  }
+  navigateToTab(index)
 }
 // #ifndef MP-WEIXIN || MP-ALIPAY
 // 因为有了 custom:true， 微信里面不需要多余的hide操作
@@ -98,7 +67,6 @@ const inactiveColor = '#9ca3af'
 function getColorByIndex(index: number) {
   return tabbarStore.curIdx === index ? activeColor : inactiveColor
 }
-
 </script>
 
 <template>

@@ -4,7 +4,7 @@
 
 <h1 align="center">番茄课表</h1>
 
-<p align="center">轻量级家教课程管理工具 · 课表 / 看板 / 统计 / 模板 / 回收站</p>
+<p align="center">轻量级家教课程管理工具 · 课表 / 看板 / 统计 / 模板 / 回收站 · 平板适配</p>
 
 ---
 
@@ -12,7 +12,7 @@
 
 **番茄课表** 是一款面向个人家教老师的课程管理 App，基于 [unibest](https://github.com/feige996/unibest) 跨平台框架开发，支持 H5、微信小程序和 APP 三端运行。
 
-所有数据本地存储，无需联网、无需注册，开箱即用。
+所有数据本地存储，无需联网、无需注册，开箱即用。支持手机和平板自适应布局。
 
 ### 核心功能
 
@@ -24,6 +24,7 @@
 | ✏️ **课程编辑** | 学生姓名、课程名、起止日期/时间、课时费、腾讯会议链接，支持跨天课程 |
 | 📋 **模板管理** | 课程模板（快速填充）与周期排课模板（按周批量生成），生成前冲突预览 |
 | 🗑️ **回收站** | 删除的课程可恢复，恢复时自动检测时间冲突 |
+| 📱 **平板适配** | 自动识别平板设备，侧边导航栏 + 多列网格布局，大屏体验更佳 |
 | 📝 **课程备注** | 教学内容 / 学生情况 / 作业 / 课后反馈四类备注 |
 | ⚠️ **冲突检测** | 新增/编辑课程时自动检测时间冲突，可强制保存 |
 | 💾 **数据导入导出** | JSON 格式备份，支持合并覆盖 / 仅追加两种导入模式 |
@@ -44,11 +45,13 @@
 
 ## 平台兼容性
 
-| H5 | iOS | Android | 微信小程序 |
-|:--:|:--:|:------:|:--------:|
-| ✅ | ✅ | ✅ | ✅ |
+| H5 | iOS | Android | 微信小程序 | 平板 |
+|:--:|:--:|:------:|:--------:|:----:|
+| ✅ | ✅ | ✅ | ✅ | ✅ |
 
-> 文件导入导出功能仅在 H5 和 APP 端可用，小程序端暂不支持。
+> - 文件导入导出功能仅在 H5 和 APP 端可用，小程序端暂不支持。
+> - 平板端（屏幕较短边 >= 600pt）自动启用侧边导航栏和多列网格布局。
+> - APP 端课前通知提醒功能仅支持 Android（需前台服务保活）。
 
 ## 快速开始
 
@@ -99,18 +102,18 @@ src/
 │   │   └── edit.vue    # 新增/编辑课程
 │   ├── templates/      # 模板管理
 │   ├── recycle/        # 回收站
-│   └── settings/       # 设置（导入导出/偏好）
+│   └── settings/       # 设置（导入导出/通知/偏好）
 ├── components/         # CourseCard / NavBar / DragFab / ConflictDialog
-├── store/              # course / template / recycle / app
+├── store/              # course / template / recycle / app / landscape / device
 ├── hooks/              # useCourseForm 等
-├── utils/              # time / conflict / avatar / file-io 等
+├── utils/              # time / conflict / avatar / file-io / feedback / notification 等
 ├── types/              # course.ts 数据模型
-└── tabbar/             # 自定义底部导航
+└── tabbar/             # 自定义底部导航 + 平板侧边导航（SideRail）
 ```
 
-## 功能截图
+## 更新日志
 
-<!-- TODO: 补充截图 -->
+详见 [CHANGELOG.md](./CHANGELOG.md)。
 
 ## License
 

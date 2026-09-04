@@ -5,6 +5,7 @@ import { avatarGradient } from '@/utils/avatar'
 import { durationHours, formatDateTime } from '@/utils/time'
 import { safeAreaBottom } from '@/utils/systemInfo'
 import { lightTap } from '@/utils/feedback'
+import { isTablet } from '@/store/device'
 import { useDialog, useToast } from '@wot-ui/ui'
 
 definePage({
@@ -157,7 +158,7 @@ onUnmounted(() => {
   <view v-if="course" class="h-screen flex flex-col overflow-hidden bg-gray-50">
     <!-- 自定义导航栏 -->
     <NavBar title="课程详情" />
-    <view class="pb-actionbar h-0 min-h-0 flex-1 overflow-y-auto px-3 pt-3">
+    <view class="h-0 min-h-0 flex-1 overflow-y-auto px-3 pt-3 pb-actionbar" :class="isTablet ? 'mx-auto max-w-200' : ''">
       <!-- 学生信息头部 -->
       <view class="card p-4">
         <view class="flex items-center gap-3">
@@ -212,7 +213,7 @@ onUnmounted(() => {
       </view>
 
       <!-- 备注 -->
-      <view class="card mb-6 mt-3 px-4 py-3">
+      <view class="mb-6 mt-3 card px-4 py-3">
         <view class="mb-2 flex items-center justify-between">
           <text class="txt-body font-medium">课程备注（{{ course.notes.length }}）</text>
         </view>

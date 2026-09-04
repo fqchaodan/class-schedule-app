@@ -3,6 +3,7 @@ import type { ExportFile } from '@/types/course'
 import { buildExportFile, exportFileApp, pickImportFileApp, validateImportFile } from '@/utils/file-io'
 import { requestNotificationPermission, rescheduleNotifications, scheduleCourseNotifications } from '@/utils/notification'
 import { safeAreaBottom, statusBarHeight } from '@/utils/systemInfo'
+import { bottomBarHeight, isTablet } from '@/store/device'
 import { lightTap } from '@/utils/feedback'
 import { today } from '@/utils/time'
 import { useDialog, useToast } from '@wot-ui/ui'
@@ -318,7 +319,7 @@ const templateHint = '可用变量：{student}=学生姓名，{course}=课程名
 <template>
   <view class="h-screen flex flex-col overflow-hidden bg-gray-50">
     <!-- 标题行（与首页统一风格） -->
-    <view class="shrink-0 bg-gradient-to-b from-indigo-50 to-white" :style="{ paddingTop: `${statusBarHeight}px` }">
+    <view class="shrink-0 from-indigo-50 to-white bg-gradient-to-b" :style="{ paddingTop: `${statusBarHeight}px` }">
       <view class="h-44px flex items-center px-4">
         <view class="flex items-center gap-2">
           <view class="i-carbon-settings text-lg text-indigo-500" />
@@ -328,8 +329,12 @@ const templateHint = '可用变量：{student}=学生姓名，{course}=课程名
         </view>
       </view>
     </view>
-    <!-- 滚动内容区 -->
-    <view class="h-0 min-h-0 flex-1 overflow-y-auto px-3" :style="{ paddingBottom: `${50 + safeAreaBottom}px` }">
+    <!-- 滚动内容区（平板端分区两列网格排布，手机单列） -->
+    <view
+      class="h-0 min-h-0 flex-1 overflow-y-auto px-3"
+      :class="isTablet ? 'grid grid-cols-2 items-start gap-x-4' : ''"
+      :style="{ paddingBottom: `${bottomBarHeight + safeAreaBottom}px` }"
+    >
       <!-- 数据 -->
       <view class="mt-4">
         <view class="section-label">
@@ -408,7 +413,7 @@ const templateHint = '可用变量：{student}=学生姓名，{course}=课程名
           课前通知
         </view>
         <wd-cell-group border rounded>
-          <wd-cell title="开启课前提醒" center>
+          <wd-cell title="开启课前提醒" center custom-style="--wot-switch-size: 16px;">
             <template #default>
               <wd-switch v-model="notificationEnabled" />
             </template>
@@ -477,7 +482,8 @@ const templateHint = '可用变量：{student}=学生姓名，{course}=课程名
         </wd-cell-group>
       </view>
 
-      <view class="mt-8 text-center text-2xs text-gray-400">
+      <!-- 版权行：平板上跨两列保持居中 -->
+      <view class="mt-8 text-center text-2xs text-gray-400" :class="isTablet ? 'col-span-2' : ''">
         所有数据仅保存在本机，请定期导出备份
       </view>
     </view>

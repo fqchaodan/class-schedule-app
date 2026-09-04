@@ -6,6 +6,7 @@ import { addWeeks, shortDate, timeToMinutes, today, weekDays, weekStart } from '
 import { safeAreaBottom, statusBarHeight } from '@/utils/systemInfo'
 import { lightTap } from '@/utils/feedback'
 import { isLandscape } from '@/store/landscape'
+import { bottomBarHeight, isTablet } from '@/store/device'
 
 // 旋转过渡状态：idle | rotating
 const isRotating = ref(false)
@@ -90,46 +91,27 @@ function isTodayIdx(i: number) {
 // 全平台统一：用物理横屏（APP 用 plus.screen，H5 用 screen.orientation）
 // 横屏时只显示内容区 + 浮动旋转按钮，其他一律隐藏
 // isLandscape 是全局状态（@/store/landscape），tabbar 组件也读取此值来隐藏
+// 横屏列宽用 CSS 百分比布局（见模板），不依赖 JS 读窗口宽度，避免旋转后宽度刷新不及时导致看板只占部分宽度
 
-// 横屏时获取屏幕宽度，用于自适应列宽
-const screenWidth = ref(0)
-function readScreenWidth() {
-  const info = uni.getSystemInfoSync()
-  screenWidth.value = info.windowWidth
-}
-readScreenWidth()
-
-// 监听窗口尺寸变化（旋转设备时自动更新屏幕宽度）
-// 保存回调引用以便卸载时移除，避免内存泄漏
-function onWindowResizeCb() {
-  readScreenWidth()
-}
-uni.onWindowResize?.(onWindowResizeCb)
-
-// 组件卸载时移除监听
+// 组件卸载时清理过渡定时器，避免内存泄漏
 onUnmounted(() => {
-  uni.offWindowResize?.(onWindowResizeCb)
   clearTransitionTimers()
 })
 
 // ---------- 看板参数 ----------
+// 大屏模式：平板（任意方向）或手机横屏，列宽用 flex 撑满、字号加大；手机竖屏走像素缩放
+const isLarge = computed(() => isTablet.value || isLandscape.value)
 const DAY_START = 6 // 06:00
 const DAY_END = 24 // 24:00
-const HOUR_HEIGHT = computed(() => isLandscape.value ? 80 : 36) // 每小时高度 px，横屏时加大让卡片内容显示完整
-const TIME_AXIS_WIDTH = 52 // 时间轴宽度 px
-const BASE_COL_WIDTH = 120 // 基础列宽 px
+const HOUR_HEIGHT = computed(() => isLarge.value ? 120 : 36) // 每小时高度 px，大屏加大让卡片内容显示完整
+const TIME_AXIS_WIDTH = computed(() => isLarge.value ? 60 : 52) // 时间轴宽度 px
+const BASE_COL_WIDTH = 120 // 基础列宽 px（竖屏缩放模式的基准）
 const ZOOM_LEVELS = [0.5, 0.65, 0.8, 1, 1.2, 1.4, 1.6, 2]
 const zoomIdx = ref(1)
 const zoom = computed(() => ZOOM_LEVELS[zoomIdx.value])
-const colWidth = computed(() => {
-  if (isLandscape.value && screenWidth.value > 0) {
-    // 横屏时：(屏幕宽度 - 时间轴宽度) / 7 = 每列宽度，填满屏幕
-    return Math.floor((screenWidth.value - TIME_AXIS_WIDTH) / 7)
-  }
-  return Math.round(BASE_COL_WIDTH * zoom.value)
-})
+const colWidth = computed(() => Math.round(BASE_COL_WIDTH * zoom.value))
 const totalHeight = computed(() => (DAY_END - DAY_START) * HOUR_HEIGHT.value)
-const totalWidth = computed(() => TIME_AXIS_WIDTH + colWidth.value * 7)
+const totalWidth = computed(() => TIME_AXIS_WIDTH.value + colWidth.value * 7)
 const hourLabels = computed(() => {
   const list: string[] = []
   for (let h = DAY_START; h < DAY_END; h++)
@@ -157,7 +139,7 @@ function courseTop(c: Course): number {
 function courseHeight(c: Course): number {
   const s = Math.max(timeToMinutes(c.startTime), DAY_START * 60)
   const e = Math.min(timeToMinutes(c.endTime), DAY_END * 60)
-  return Math.max(34, ((e - s) / 60) * HOUR_HEIGHT.value,
+  return Math.max(isLarge.value ? 50 : 34, ((e - s) / 60) * HOUR_HEIGHT.value,
   )
 }
 
@@ -182,8 +164,8 @@ function cColor(c: Course) {
 
 const weekTotal = computed(() => days.value.reduce((n, d) => n + courseStore.coursesOnDay(d).length, 0))
 
-// 横屏时底部不需要 padding（tabbar 被隐藏）
-const bottomPadding = computed(() => isLandscape.value ? 0 : 50)
+// 横屏看板或平板（侧边导航接管）时底部不需要 padding
+const bottomPadding = computed(() => bottomBarHeight.value)
 
 async function rotateScreen() {
   if (isRotating.value)
@@ -227,8 +209,6 @@ async function rotateScreen() {
       uni.showToast({ title: '请手动旋转设备至横屏', icon: 'none', duration: 2000 })
     }
     // #endif
-    // 旋转后重新读取屏幕宽度
-    readScreenWidth()
   })
 }
 
@@ -286,20 +266,21 @@ function openDetail(course: Course) {
     <!-- 看板区：双向滚动（横屏时占满全屏） -->
     <view class="h-0 min-h-0 flex flex-1 flex-col overflow-hidden" :style="{ paddingBottom: `${bottomPadding + safeAreaBottom}px` }">
       <scroll-view scroll-x scroll-y class="h-full overflow-hidden">
-        <view class="relative overflow-hidden" :style="{ width: `${totalWidth}px` }">
+        <view class="relative overflow-hidden" :style="{ width: isLarge ? '100%' : `${totalWidth}px` }">
           <!-- 表头 -->
           <view class="sticky top-0 z-20 flex">
-            <view class="sticky left-0 z-30 border-b border-r border-gray-200 bg-gray-50" :style="{ width: `${TIME_AXIS_WIDTH}px`, height: '44px' }" />
+            <view class="sticky left-0 z-30 shrink-0 border-b border-r border-gray-200 bg-gray-50" :style="{ width: `${TIME_AXIS_WIDTH}px`, height: isLarge ? '56px' : '44px' }" />
             <view
               v-for="(name, i) in dayNames"
               :key="i"
-              class="shrink-0 border-b border-r border-gray-200 bg-white py-1.5 text-center"
-              :style="{ width: `${colWidth}px` }"
+              class="border-b border-r border-gray-200 bg-white py-1.5 text-center"
+              :class="isLarge ? 'flex-1 min-w-0' : 'shrink-0'"
+              :style="isLarge ? {} : { width: `${colWidth}px` }"
             >
-              <view class="text-xs font-medium" :class="isTodayIdx(i) ? 'text-indigo-600' : 'text-gray-700'">
+              <view :class="[isLarge ? 'text-sm font-medium' : 'text-xs font-medium', isTodayIdx(i) ? 'text-indigo-600' : 'text-gray-700']">
                 {{ name }}
               </view>
-              <view class="text-2xs" :class="isTodayIdx(i) ? 'text-indigo-500' : 'text-gray-400'">
+              <view :class="[isLarge ? 'text-xs' : 'text-2xs', isTodayIdx(i) ? 'text-indigo-500' : 'text-gray-400']">
                 {{ shortDate(days[i]) }}
               </view>
             </view>
@@ -308,24 +289,27 @@ function openDetail(course: Course) {
           <!-- 主体 -->
           <view class="flex">
             <!-- 时间轴 -->
-            <view class="sticky left-0 z-10 bg-gray-50" :style="{ width: `${TIME_AXIS_WIDTH}px`, height: `${totalHeight}px` }">
+            <view class="sticky left-0 z-10 shrink-0 bg-gray-50" :style="{ width: `${TIME_AXIS_WIDTH}px`, height: `${totalHeight}px` }">
               <view
                 v-for="(label, idx) in hourLabels"
                 :key="label"
-                class="absolute right-1 text-2xs text-gray-400"
+                class="absolute right-1 text-gray-400"
+                :class="isLarge ? 'text-xs' : 'text-2xs'"
                 :style="{ top: `${idx * HOUR_HEIGHT + 2}px` }"
               >
                 {{ label }}
               </view>
             </view>
 
-            <!-- 7 列区域 -->
-            <view class="relative" :style="{ width: `${colWidth * 7}px`, height: `${totalHeight}px` }">
+            <!-- 7 列区域（横屏用 flex 撑满剩余宽度，竖屏用像素宽度走缩放） -->
+            <view class="relative min-w-0 flex-1" :style="{ height: `${totalHeight}px`, width: isLarge ? undefined : `${colWidth * 7}px` }">
               <view
                 v-for="i in 7"
                 :key="`col-${i}`"
                 class="absolute top-0 h-full border-r border-gray-100 bg-white"
-                :style="{ left: `${(i - 1) * colWidth}px`, width: `${colWidth}px` }"
+                :style="isLarge
+                  ? { left: `${((i - 1) * 100) / 7}%`, width: `${100 / 7}%` }
+                  : { left: `${(i - 1) * colWidth}px`, width: `${colWidth}px` }"
               />
               <view
                 v-for="(label, idx) in hourLabels"
@@ -337,20 +321,20 @@ function openDetail(course: Course) {
                 <view
                   v-for="c in coursesOnDay(day)"
                   :key="c.id"
-                  class="absolute z-20 overflow-hidden border-l-2 rounded-lg px-1.5 py-1 shadow-sm"
-                  :class="[cColor(c).bg, cColor(c).bar]"
+                  class="absolute z-20 overflow-hidden border-l-2 rounded-lg shadow-sm"
+                  :class="[cColor(c).bg, cColor(c).bar, isLarge ? 'px-2.5 py-1.5' : 'px-1.5 py-1']"
                   :style="{
-                    left: `${i * colWidth + 3}px`,
-                    top: `${courseTop(c) + 3}px`,
-                    width: `${colWidth - 6}px`,
-                    height: `${courseHeight(c) - 6}px`,
+                    left: isLarge ? `calc(${(i * 100) / 7}% + 5px)` : `${i * colWidth + 3}px`,
+                    top: `${courseTop(c) + (isLarge ? 5 : 3)}px`,
+                    width: isLarge ? `calc(${100 / 7}% - 10px)` : `${colWidth - 6}px`,
+                    height: `${courseHeight(c) - (isLarge ? 10 : 6)}px`,
                   }"
                   @click="openDetail(c)"
                 >
-                  <view class="truncate pr-3 text-xs text-gray-800 font-medium leading-tight">
+                  <view :class="isLarge ? 'truncate pr-3 text-sm text-gray-800 font-medium leading-tight' : 'truncate pr-3 text-xs text-gray-800 font-medium leading-tight'">
                     {{ c.studentName || '未命名' }}
                   </view>
-                  <view class="text-2xs text-gray-500 leading-tight">
+                  <view :class="isLarge ? 'text-xs text-gray-500 leading-tight' : 'text-2xs text-gray-500 leading-tight'">
                     {{ c.startTime }}-{{ c.endTime }}
                   </view>
                   <view

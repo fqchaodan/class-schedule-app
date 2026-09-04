@@ -2,6 +2,7 @@
 import { onHide, onLaunch, onShow } from '@dcloudio/uni-app'
 import { getCurrentInstance, onMounted, onUnmounted } from 'vue'
 import { navigateToInterceptor } from '@/router/interceptor'
+import { initDeviceState } from '@/store/device'
 import { tabbarStore } from '@/tabbar/store'
 import { permission } from '@/router/permission'
 import { createNotificationChannel, requestNotificationPermission, scheduleCourseNotifications, startForegroundService, rescheduleNotifications } from '@/utils/notification'
@@ -13,6 +14,8 @@ router && permission.install(router)
 
 onLaunch((options) => {
   console.log('App.vue onLaunch', options)
+  // 初始化窗口尺寸监听（平板判定 / 旋转 / 分屏）
+  initDeviceState()
   // #ifdef APP-PLUS
   // APP 启动时：创建通知渠道 + 请求权限 + 启动前台服务
   createNotificationChannel()

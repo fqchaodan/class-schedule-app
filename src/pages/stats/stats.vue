@@ -2,6 +2,7 @@
 import type { Course } from '@/types/course'
 import { dayjs, durationHours, weekStart } from '@/utils/time'
 import { safeAreaBottom, statusBarHeight } from '@/utils/systemInfo'
+import { bottomBarHeight, isTablet, windowWidth } from '@/store/device'
 import { lightTap } from '@/utils/feedback'
 
 definePage({
@@ -234,13 +235,21 @@ const groupList = computed(() => (groupMode.value === 'student' ? byStudent.valu
 /** 明细列表最大值，用于进度条宽度 */
 const maxCount = computed(() => Math.max(1, ...groupList.value.map(i => i.count)))
 
+// 平板端分组条目多列排布：竖屏 2 列、宽屏 3 列；手机单列
+const groupColumns = computed(() => {
+  if (!isTablet.value) {
+    return 1
+  }
+  return windowWidth.value >= 1000 ? 3 : 2
+})
+
 const groupOptions = ['student', 'course'] as const
 </script>
 
 <template>
   <view class="h-screen flex flex-col overflow-hidden bg-gray-50">
     <!-- 标题行（与首页统一风格） -->
-    <view class="shrink-0 bg-gradient-to-b from-indigo-50 to-white" :style="{ paddingTop: `${statusBarHeight}px` }">
+    <view class="shrink-0 from-indigo-50 to-white bg-gradient-to-b" :style="{ paddingTop: `${statusBarHeight}px` }">
       <view class="h-44px flex items-center px-4">
         <view class="flex items-center gap-2">
           <view class="i-carbon-chart-bar text-lg text-indigo-500" />
@@ -296,10 +305,10 @@ const groupOptions = ['student', 'course'] as const
     </view>
 
     <!-- 滚动内容区 -->
-    <view class="h-0 min-h-0 flex-1 overflow-y-auto px-3 pt-3" :style="{ paddingBottom: `${50 + safeAreaBottom}px` }">
+    <view class="h-0 min-h-0 flex-1 overflow-y-auto px-3 pt-3" :style="{ paddingBottom: `${bottomBarHeight + safeAreaBottom}px` }">
       <!-- 汇总卡片 -->
       <view class="overflow-hidden rounded-2xl bg-white shadow-card">
-        <view class="bg-indigo-50/80 border-b border-indigo-100 px-4 py-2.5">
+        <view class="border-b border-indigo-100 bg-indigo-50/80 px-4 py-2.5">
           <view class="flex items-center gap-1.5">
             <view class="i-carbon-chart-bar text-sm text-indigo-500" />
             <text class="text-xs text-indigo-600 font-medium">{{ rangeLabel }}汇总</text>
@@ -382,65 +391,71 @@ const groupOptions = ['student', 'course'] as const
 
         <wd-empty v-if="groupList.length === 0" tip="该时段暂无课程" />
 
+        <!-- 平板端多列网格，手机单列（gap 与原 mb-2 间距一致） -->
         <view
-          v-for="(item, idx) in groupList"
-          :key="item.key"
-          class="card mb-2 overflow-hidden"
+          class="grid gap-2"
+          :style="groupColumns > 1 ? { gridTemplateColumns: `repeat(${groupColumns}, minmax(0, 1fr))` } : {}"
         >
-          <view class="p-3.5">
-            <view class="flex items-center justify-between">
-              <!-- 左侧：序号 + 名称 -->
-              <view class="min-w-0 flex flex-1 items-center gap-2.5">
+          <view
+            v-for="(item, idx) in groupList"
+            :key="item.key"
+            class="card overflow-hidden"
+          >
+            <view class="p-3.5">
+              <view class="flex items-center justify-between">
+                <!-- 左侧：序号 + 名称 -->
+                <view class="min-w-0 flex flex-1 items-center gap-2.5">
+                  <view
+                    class="h-6 w-6 flex shrink-0 items-center justify-center rounded-full text-2xs font-bold"
+                    :class="idx === 0
+                      ? 'from-amber-400 to-orange-400 bg-gradient-to-br text-white'
+                      : idx === 1
+                        ? 'from-gray-300 to-gray-400 bg-gradient-to-br text-white'
+                        : idx === 2
+                          ? 'from-orange-300 to-amber-400 bg-gradient-to-br text-white'
+                          : 'bg-gray-100 text-gray-500'"
+                  >
+                    {{ idx + 1 }}
+                  </view>
+                  <text class="truncate text-sm text-gray-800 font-medium">{{ item.label }}</text>
+                </view>
+                <!-- 右侧：收入 -->
+                <view class="ml-2 shrink-0 text-right">
+                  <view class="text-sm text-orange-500 font-semibold">
+                    ¥{{ item.income }}
+                  </view>
+                  <view class="text-2xs text-gray-400">
+                    收入
+                  </view>
+                </view>
+              </view>
+
+              <!-- 进度条 -->
+              <view class="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100">
                 <view
-                  class="h-6 w-6 flex shrink-0 items-center justify-center rounded-full text-2xs font-bold"
-                  :class="idx === 0
-                    ? 'from-amber-400 to-orange-400 bg-gradient-to-br text-white'
-                    : idx === 1
-                      ? 'from-gray-300 to-gray-400 bg-gradient-to-br text-white'
-                      : idx === 2
-                        ? 'from-orange-300 to-amber-400 bg-gradient-to-br text-white'
-                        : 'bg-gray-100 text-gray-500'"
-                >
-                  {{ idx + 1 }}
-                </view>
-                <text class="truncate text-sm text-gray-800 font-medium">{{ item.label }}</text>
+                  class="h-full rounded-full bg-indigo-500 transition-all duration-300"
+                  :style="{ width: `${(item.count / maxCount) * 100}%` }"
+                />
               </view>
-              <!-- 右侧：收入 -->
-              <view class="ml-2 shrink-0 text-right">
-                <view class="text-sm text-orange-500 font-semibold">
-                  ¥{{ item.income }}
-                </view>
-                <view class="text-2xs text-gray-400">
-                  收入
-                </view>
-              </view>
-            </view>
 
-            <!-- 进度条 -->
-            <view class="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100">
-              <view
-                class="h-full rounded-full bg-indigo-500 transition-all duration-300"
-                :style="{ width: `${(item.count / maxCount) * 100}%` }"
-              />
-            </view>
-
-            <!-- 底部数据行 -->
-            <view class="mt-2 flex items-center gap-4 text-2xs">
-              <view class="flex items-center gap-1">
-                <view class="h-1.5 w-1.5 rounded-full bg-indigo-400" />
-                <text class="text-gray-500">{{ item.count }} 节</text>
-              </view>
-              <view class="flex items-center gap-1">
-                <view class="h-1.5 w-1.5 rounded-full bg-gray-300" />
-                <text class="text-gray-500">{{ item.hours }}h</text>
-              </view>
-              <view class="flex items-center gap-1">
-                <view class="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                <text class="text-gray-500">已完成 {{ item.completedCount }}</text>
-              </view>
-              <view class="ml-auto flex items-center gap-1">
-                <view class="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                <text class="text-gray-500">已收 ¥{{ item.paidIncome }}</text>
+              <!-- 底部数据行 -->
+              <view class="mt-2 flex items-center gap-4 text-2xs">
+                <view class="flex items-center gap-1">
+                  <view class="h-1.5 w-1.5 rounded-full bg-indigo-400" />
+                  <text class="text-gray-500">{{ item.count }} 节</text>
+                </view>
+                <view class="flex items-center gap-1">
+                  <view class="h-1.5 w-1.5 rounded-full bg-gray-300" />
+                  <text class="text-gray-500">{{ item.hours }}h</text>
+                </view>
+                <view class="flex items-center gap-1">
+                  <view class="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  <text class="text-gray-500">已完成 {{ item.completedCount }}</text>
+                </view>
+                <view class="ml-auto flex items-center gap-1">
+                  <view class="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  <text class="text-gray-500">已收 ¥{{ item.paidIncome }}</text>
+                </view>
               </view>
             </view>
           </view>

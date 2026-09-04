@@ -4,6 +4,7 @@ import { avatarGradient } from '@/utils/avatar'
 import { durationHours, formatDateTime } from '@/utils/time'
 import { safeAreaBottom } from '@/utils/systemInfo'
 import { lightTap } from '@/utils/feedback'
+import { isTablet } from '@/store/device'
 import { useDialog, useToast } from '@wot-ui/ui'
 
 definePage({
@@ -92,7 +93,7 @@ function clearAll() {
     <!-- 自定义导航栏 -->
     <NavBar title="回收站" />
     <!-- 滚动内容区 -->
-    <view class="h-0 min-h-0 flex-1 overflow-y-auto px-3 pt-3" :style="{ paddingBottom: `${safeAreaBottom}px` }">
+    <view class="h-0 min-h-0 flex-1 overflow-y-auto px-3 pt-3" :class="isTablet ? 'mx-auto max-w-200' : ''" :style="{ paddingBottom: `${safeAreaBottom}px` }">
       <wd-empty
         v-if="items.length === 0"
         tip="回收站是空的"

@@ -1,5 +1,29 @@
 # 更新日志
 
+## 0.2.0 (2026-09-04)
+
+### 新增功能
+
+#### 平板适配与响应式布局
+- 新增 `src/store/device.ts`：窗口尺寸监听（`windowWidth`/`windowHeight`）、平板判定（`isTablet`，基于 sw600dp 约定）、侧边导航显示开关（`showSideRail`）、底部 tabbar 占位高度（`bottomBarHeight`）
+- 新增 `src/tabbar/SideRail.vue`：平板端侧边导航栏（MD3 Navigation Rail 风格），与底部 tabbar 复用同一份配置和状态
+- 新增 `src/tabbar/nav.ts`：将 tabbar 导航逻辑提取为 `navigateToTab()`，底部 tabbar 与侧边导航共用
+- `App.ku.vue` 集成 `SideRail` 与 `showSideRail` 状态联动
+- `App.vue` `onLaunch` 调用 `initDeviceState()` 注册窗口尺寸监听
+- `src/layouts/default.vue` 平板端给左侧导航栏让出 80px 宽度
+
+### 优化改进
+
+#### 各页面平板适配
+- **课表页（index）**：周视图在平板上自动切换为多列网格（竖屏 2 列、宽屏 3 列），日视图居中限宽
+- **看板页（list）**：横屏/大屏时列宽从固定像素改为百分比自适应填满屏幕，卡片字号和间距随屏幕尺寸动态调整
+- **统计页（stats）**：分组条目多列网格排布（竖屏 2 列、宽屏 3 列），分组卡片重构——新增进度条和排行榜序号徽章，收入信息右对齐
+- **课程详情/编辑/回收站页**：平板端内容区居中限宽（max-w-180/max-w-200），提升大屏阅读体验
+- **设置页**：平板端两列网格排布，底部间距改用 `bottomBarHeight` 适配侧边导航
+
+#### tabbar 代码精简
+- `src/tabbar/index.vue` 导航逻辑从内联实现改为调用 `navigateToTab()`，减少约 30 行重复代码
+
 ## 0.1.2 (2026-09-02)
 
 ### Bug 修复

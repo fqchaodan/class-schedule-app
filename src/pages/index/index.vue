@@ -2,6 +2,7 @@
 import type { Course } from '@/types/course'
 import { addDays, addWeeks, longDate, shortDate, today, weekDays, weekStart } from '@/utils/time'
 import { safeAreaBottom, statusBarHeight } from '@/utils/systemInfo'
+import { bottomBarHeight, isTablet, windowWidth } from '@/store/device'
 import { lightTap } from '@/utils/feedback'
 
 definePage({
@@ -77,6 +78,14 @@ function openEdit() {
 
 const weekTotal = computed(() => days.value.reduce((n, d) => n + coursesOf(d).length, 0))
 
+// 平板端周视图按窗口宽度分列：竖屏 2 列、宽屏 3 列；手机保持单列
+const weekColumns = computed(() => {
+  if (!isTablet.value) {
+    return 1
+  }
+  return windowWidth.value >= 1000 ? 3 : 2
+})
+
 const modeOptions = [
   { value: 'week', label: '周' },
   { value: 'day', label: '日' },
@@ -141,10 +150,14 @@ const modeOptions = [
     </view>
 
     <!-- 滚动内容区 -->
-    <view class="h-0 min-h-0 flex-1 overflow-y-auto px-3 pt-3" :style="{ paddingBottom: `${50 + safeAreaBottom}px` }">
-      <!-- 周视图：按天分组 -->
-      <view v-if="mode === 'week'">
-        <view v-for="day in days" :key="day" class="mb-4">
+    <view class="h-0 min-h-0 flex-1 overflow-y-auto pt-3" :class="isTablet ? 'px-6' : 'px-3'" :style="{ paddingBottom: `${bottomBarHeight + safeAreaBottom}px` }">
+      <!-- 周视图：按天分组（平板上多列网格，手机单列） -->
+      <view
+        v-if="mode === 'week'"
+        class="grid gap-4"
+        :style="{ gridTemplateColumns: `repeat(${weekColumns}, minmax(0, 1fr))` }"
+      >
+        <view v-for="day in days" :key="day">
           <view class="mb-2 flex items-center gap-2">
             <wd-tag
               :type="isToday(day) ? 'primary' : 'default'"
@@ -172,8 +185,8 @@ const modeOptions = [
         </view>
       </view>
 
-      <!-- 日视图 -->
-      <view v-else>
+      <!-- 日视图（平板上约束宽度居中，避免卡片被拉得过宽） -->
+      <view v-else :class="isTablet ? 'mx-auto max-w-180' : ''">
         <wd-empty
           v-if="coursesOf(curDay).length === 0"
           tip="今天没有课程"
