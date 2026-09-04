@@ -113,7 +113,19 @@ src/
 
 ## 更新日志
 
-详见 [CHANGELOG.md](./CHANGELOG.md)。
+### v0.2.0 (2026-09-04)
+
+#### 新增功能
+- **平板适配与响应式布局**：新增 `device` store（窗口尺寸监听、平板判定 `isTablet`、侧边导航开关 `showSideRail`）
+- **平板侧边导航栏**：新增 `SideRail.vue`（MD3 Navigation Rail 风格），与底部 tabbar 复用配置
+- **导航逻辑提取**：新增 `nav.ts`，底部 tabbar 与侧边导航共用 `navigateToTab()`
+
+#### 优化改进
+- 课表页平板多列网格、看板页百分比列宽自适应、统计页多列布局+进度条+排行榜重构
+- 课程详情/编辑/回收站页平板端居中限宽，设置页两列网格排布
+- tabbar 代码精简，减少约 30 行重复代码
+
+> 完整更新日志详见 [CHANGELOG.md](./CHANGELOG.md)
 
 ## License
 
