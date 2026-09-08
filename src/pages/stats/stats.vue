@@ -120,21 +120,16 @@ const rangeOptions = ['day', 'week', 'month', 'year'] as const
 
 // ---------- 课程日期计算 ----------
 function courseDatesInRange(course: Course): string[] {
-  const dates: string[] = []
-  let cur = dayjs(course.startDate)
-  const end = dayjs(course.endDate > rangeEnd.value ? rangeEnd.value : course.endDate)
-  const start = cur.isBefore(rangeStart.value) ? dayjs(rangeStart.value) : cur
-  cur = start
-  while (!cur.isAfter(end, 'day')) {
-    dates.push(cur.format('YYYY-MM-DD'))
-    cur = cur.add(1, 'day')
-  }
-  return dates
+  // 不存在跨天课程，startDate === endDate
+  if (course.startDate >= rangeStart.value && course.startDate <= rangeEnd.value)
+    return [course.startDate]
+  return []
 }
 
 const coursesInRange = computed(() =>
   courseStore.sortedByTime.filter((c) => {
-    return c.startDate <= rangeEnd.value && c.endDate >= rangeStart.value
+    // 不存在跨天课程，startDate === endDate
+    return c.startDate >= rangeStart.value && c.startDate <= rangeEnd.value
   }),
 )
 
@@ -305,7 +300,7 @@ const groupOptions = ['student', 'course'] as const
     </view>
 
     <!-- 滚动内容区 -->
-    <view class="h-0 min-h-0 flex-1 overflow-y-auto px-3 pt-3" :style="{ paddingBottom: `${bottomBarHeight + safeAreaBottom}px` }">
+    <view class="mb-2 h-0 min-h-0 flex-1 overflow-y-auto px-3 pt-3" :style="{ paddingBottom: `${bottomBarHeight + safeAreaBottom}px` }">
       <!-- 汇总卡片 -->
       <view class="overflow-hidden rounded-2xl bg-white shadow-card">
         <view class="border-b border-indigo-100 bg-indigo-50/80 px-4 py-2.5">

@@ -121,7 +121,7 @@ function clearAll() {
                 <text v-if="item.course.name && item.course.studentName" class="truncate text-xs text-gray-400">{{ item.course.name }}</text>
               </view>
               <view class="mt-0.5 flex flex-wrap items-center gap-x-1 text-xs text-gray-500">
-                <text>{{ item.course.startDate }} ~ {{ item.course.endDate }}</text>
+                <text>{{ item.course.startDate }}</text>
                 <text class="text-gray-300">·</text>
                 <text>{{ item.course.startTime }}-{{ item.course.endTime }}（{{ durationHours(item.course.startTime, item.course.endTime) }}h）</text>
               </view>

@@ -28,12 +28,10 @@ const {
   name,
   meetingUrl,
   startDate,
-  endDate,
   startTime,
   endTime,
   feeRaw,
   isEdit,
-  isCrossDay,
   buildDraft,
   validate,
 } = useCourseForm()
@@ -44,37 +42,22 @@ const showEndTimePicker = ref(false)
 
 // ---------- 日历选择器 ref ----------
 const startDateCalendarRef = ref()
-const endDateCalendarRef = ref()
 
 // ---------- 日期时间戳双向转换 ----------
 const startDateTs = computed({
   get: () => dateToTimestamp(startDate.value),
   set: (ts: number) => {
     startDate.value = timestampToDate(ts)
-    if (endDate.value < startDate.value)
-      endDate.value = startDate.value
-  },
-})
-const endDateTs = computed({
-  get: () => dateToTimestamp(endDate.value),
-  set: (ts: number) => {
-    endDate.value = timestampToDate(ts)
   },
 })
 
 function openStartDateCalendar() {
   startDateCalendarRef.value?.open()
 }
-function openEndDateCalendar() {
-  endDateCalendarRef.value?.open()
-}
 
 // ---------- 日历确认回调 ----------
 function onStartDateConfirm({ value }: { value: number }) {
   startDateTs.value = value
-}
-function onEndDateConfirm({ value }: { value: number }) {
-  endDateTs.value = value
 }
 
 // ---------- 课程模板（快速填充） ----------
@@ -93,8 +76,11 @@ function applyTemplate(tpl: CourseTemplate) {
   feeRaw.value = tpl.fee != null ? String(tpl.fee) : ''
 }
 
-function onTemplateConfirm({ value }: { value: number }) {
-  const tpl = courseTemplates.value[value]
+function onTemplateConfirm({ value }: { value: (string | number)[] }) {
+  // wd-picker 的 columns 为字符串数组时，confirm 返回的 value 是选项值（即模板名称），不是索引
+  const tplName = String(value[0] ?? '')
+  const idx = templateColumns.value.findIndex(n => n === tplName)
+  const tpl = idx >= 0 ? courseTemplates.value[idx] : undefined
   if (tpl) {
     applyTemplate(tpl)
     toast.show('已填充模板，可修改后保存')
@@ -114,7 +100,6 @@ onLoad((query: any) => {
         name.value = draft.name ?? ''
         meetingUrl.value = draft.meetingUrl ?? ''
         startDate.value = draft.startDate
-        endDate.value = draft.endDate
         startTime.value = draft.startTime
         endTime.value = draft.endTime
         feeRaw.value = draft.fee != null ? String(draft.fee) : ''
@@ -128,7 +113,6 @@ onLoad((query: any) => {
       name.value = course.name ?? ''
       meetingUrl.value = course.meetingUrl ?? ''
       startDate.value = course.startDate
-      endDate.value = course.endDate
       startTime.value = course.startTime
       endTime.value = course.endTime
       feeRaw.value = course.fee != null ? String(course.fee) : ''
@@ -240,7 +224,10 @@ const endTimeArr = computed({
 const selectedTemplateArr = computed({
   get: () => [selectedTemplateIdx.value],
   set: (val: (string | number)[]) => {
-    selectedTemplateIdx.value = Number(val[0]) || 0
+    // columns 为字符串数组时，val[0] 是选项值（模板名称），需按名称查找索引
+    const name = String(val[0] ?? '')
+    const idx = templateColumns.value.findIndex(n => n === name)
+    selectedTemplateIdx.value = idx >= 0 ? idx : 0
   },
 })
 
@@ -348,30 +335,14 @@ onUnmounted(() => {
       <view class="mt-3 px-3">
         <wd-cell-group border rounded>
           <wd-cell
-            title="开始日期"
+            title="上课日期"
             is-link
             center
             title-width="5em"
             @click="openStartDateCalendar"
           >
             <template #default>
-              <text class="text-sm" :class="isCrossDay ? 'text-indigo-500' : 'text-gray-800'">{{ startDate }}</text>
-            </template>
-          </wd-cell>
-          <wd-cell
-            title="结束日期"
-            is-link
-            center
-            title-width="5em"
-            @click="openEndDateCalendar"
-          >
-            <template #default>
-              <view class="flex items-center justify-end gap-2">
-                <text class="text-sm text-gray-800">{{ endDate }}</text>
-                <wd-tag v-if="isCrossDay" type="primary" size="small">
-                  跨天
-                </wd-tag>
-              </view>
+              <text class="text-sm text-gray-800">{{ startDate }}</text>
             </template>
           </wd-cell>
           <wd-cell
@@ -399,7 +370,7 @@ onUnmounted(() => {
         </wd-cell-group>
       </view>
       <view class="mt-2 px-2 text-2xs text-gray-400 leading-relaxed">
-        时间任意自定义（1 分钟一档）；结束日期晚于开始日期即为跨天课程，跨天期间每天都会在课表中显示。
+        时间任意自定义（1 分钟一档）。
       </view>
     </view>
 
@@ -441,24 +412,14 @@ onUnmounted(() => {
       @confirm="onTemplateConfirm"
     />
 
-    <!-- 日历选择器 - 开始日期 -->
+    <!-- 日历选择器 - 上课日期 -->
     <wd-calendar
       ref="startDateCalendarRef"
       v-model="startDateTs"
-      title="开始日期"
+      title="上课日期"
       type="date"
       :first-day-of-week="1"
       @confirm="onStartDateConfirm"
-    />
-
-    <!-- 日历选择器 - 结束日期 -->
-    <wd-calendar
-      ref="endDateCalendarRef"
-      v-model="endDateTs"
-      title="结束日期"
-      type="date"
-      :first-day-of-week="1"
-      @confirm="onEndDateConfirm"
     />
 
     <!-- 时间选择器 - 开始时间（双列：小时+分钟） -->

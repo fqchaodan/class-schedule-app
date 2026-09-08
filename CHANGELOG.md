@@ -1,5 +1,28 @@
 # 更新日志
 
+## 0.2.1 (2026-09-08)
+
+### Bug 修复
+
+#### 模板选择器修复
+- 修复课程编辑页"从模板填充"功能选择模板无效果的问题
+  - **根因**：`wd-picker` 的 `columns` 为字符串数组时，confirm 事件返回的 `value` 是选项值（模板名称字符串），而非数字索引；原代码用 `Number(value[0]) || 0` 转换字符串导致始终为 `0`，只能选中第一个模板
+  - **修复**：改为通过模板名称字符串 `findIndex` 查找对应索引，同时修复 `selectedTemplateArr` setter 中的相同问题
+
+### 优化改进
+
+#### 移除跨天课程机制
+- 课程不再支持跨天排课，"开始日期"更名为"上课日期"，移除"结束日期"字段
+- 涉及改动：
+  - `src/hooks/useCourseForm.ts`：移除 `endDate` ref 和 `isCrossDay` computed，`buildDraft()` 中 `endDate` 始终等于 `startDate`
+  - `src/pages/course/edit.vue`：移除结束日期的日历选择器 UI 和相关逻辑，"开始日期"改为"上课日期"
+  - `src/pages/course/detail.vue`：移除跨天标签和结束日期显示
+  - `src/components/CourseCard.vue`：移除跨天标签和结束日期显示
+  - `src/store/course.ts`：`duplicateCourse` 中 `endDate` 与 `startDate` 一致，`search` 简化不再检查 `endDow`
+  - `src/pages/stats/stats.vue`：`courseDatesInRange` 和 `coursesInRange` 简化为单日期判断
+  - `src/pages/recycle/recycle.vue`：移除结束日期显示
+- **兼容性**：`Course` 接口保留 `endDate` 字段，已有数据和导入导出不受影响；新建/编辑课程时 `endDate` 始终等于 `startDate`
+
 ## 0.2.0 (2026-09-04)
 
 ### 新增功能

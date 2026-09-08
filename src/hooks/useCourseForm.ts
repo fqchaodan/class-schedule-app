@@ -76,20 +76,18 @@ export function useCourseForm() {
   const name = ref('')
   const meetingUrl = ref('')
   const startDate = ref(today())
-  const endDate = ref(today())
   const startTime = ref('09:00')
   const endTime = ref('10:00')
   const feeRaw = ref('')
 
   const isEdit = computed(() => !!editId.value && !isCopyMode.value)
-  const isCrossDay = computed(() => endDate.value > startDate.value)
 
   function buildDraft() {
     return {
       studentName: studentName.value.trim(),
       name: name.value.trim() || undefined,
       startDate: startDate.value,
-      endDate: endDate.value,
+      endDate: startDate.value,
       startTime: startTime.value,
       endTime: endTime.value,
       fee: feeRaw.value === '' ? undefined : Number(feeRaw.value),
@@ -100,8 +98,6 @@ export function useCourseForm() {
   function validate(): string {
     if (!studentName.value.trim())
       return '请填写学生姓名'
-    if (endDate.value < startDate.value)
-      return '结束日期不能早于开始日期'
     if (timeToMinutes(endTime.value) <= timeToMinutes(startTime.value))
       return '结束时间需晚于开始时间'
     if (feeRaw.value !== '' && (Number.isNaN(Number(feeRaw.value)) || Number(feeRaw.value) < 0))
@@ -116,7 +112,6 @@ export function useCourseForm() {
     name.value = ''
     meetingUrl.value = ''
     startDate.value = today()
-    endDate.value = today()
     startTime.value = '09:00'
     endTime.value = '10:00'
     feeRaw.value = ''
@@ -129,12 +124,10 @@ export function useCourseForm() {
     name,
     meetingUrl,
     startDate,
-    endDate,
     startTime,
     endTime,
     feeRaw,
     isEdit,
-    isCrossDay,
     buildDraft,
     validate,
     reset,

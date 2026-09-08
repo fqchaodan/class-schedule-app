@@ -119,7 +119,6 @@ function remove() {
     .catch(() => {})
 }
 
-const isCrossDay = computed(() => course.value && course.value.endDate > course.value.startDate)
 const hours = computed(() => course.value ? durationHours(course.value.startTime, course.value.endTime) : 0)
 /** 头像渐变（与 CourseCard 同一 hash 规则，同一学生全站同色） */
 const avatarCls = computed(() => avatarGradient(course.value ? (course.value.studentName || course.value.name || '课') : '课'))
@@ -181,13 +180,7 @@ onUnmounted(() => {
               </wd-tag>
             </view>
             <view class="mt-1 text-xs text-gray-400">
-              {{ course.startDate }} ~ {{ course.endDate }}
-              <template v-if="isCrossDay">
-                <wd-tag type="primary" size="small">
-                  跨天
-                </wd-tag>
-              </template>
-              · {{ course.startTime }} - {{ course.endTime }}（{{ hours }}h）
+              {{ course.startDate }} · {{ course.startTime }} - {{ course.endTime }}（{{ hours }}h）
             </view>
           </view>
         </view>

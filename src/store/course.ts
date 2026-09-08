@@ -35,9 +35,7 @@ export const useCourseStore = defineStore(
       return sortedByTime.value.filter((c) => {
         if (weekday != null) {
           const startDow = new Date(`${c.startDate}T00:00:00`).getDay()
-          const endDow = new Date(`${c.endDate}T00:00:00`).getDay()
-          // 跨天课程：只要起止区间包含该星期即算（简化处理）
-          if (startDow !== weekday && endDow !== weekday)
+          if (startDow !== weekday)
             return false
         }
         if (!kw)
@@ -146,25 +144,25 @@ export const useCourseStore = defineStore(
       return true
     }
 
-    /** 复制课程：日期默认平移 7 天，返回新课程草稿供编辑页预填 */
-    function duplicateCourse(id: string): (CourseDraft & { sourceName: string }) | null {
-      const source = getById(id)
-      if (!source)
-        return null
-      const shift = (d: string) => addDays(d, 7)
-      return {
-        studentName: source.studentName,
-        name: source.name,
-        startDate: shift(source.startDate),
-        endDate: shift(source.endDate),
-        startTime: source.startTime,
-        endTime: source.endTime,
-        fee: source.fee,
-        meetingUrl: source.meetingUrl,
-        notes: [],
-        sourceName: source.name ?? '',
-      }
+  /** 复制课程：日期默认平移 7 天，返回新课程草稿供编辑页预填 */
+  function duplicateCourse(id: string): (CourseDraft & { sourceName: string }) | null {
+    const source = getById(id)
+    if (!source)
+      return null
+    const shiftedDate = addDays(source.startDate, 7)
+    return {
+      studentName: source.studentName,
+      name: source.name,
+      startDate: shiftedDate,
+      endDate: shiftedDate,
+      startTime: source.startTime,
+      endTime: source.endTime,
+      fee: source.fee,
+      meetingUrl: source.meetingUrl,
+      notes: [],
+      sourceName: source.name ?? '',
     }
+  }
 
     /** 直接批量插入（模板生成 / 导入用） */
     function insertMany(list: Course[]) {

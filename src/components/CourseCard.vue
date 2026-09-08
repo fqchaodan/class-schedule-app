@@ -77,7 +77,6 @@ function confirmDelete() {
 
 const noteCount = computed(() => props.course.notes.length)
 const hours = computed(() => durationHours(props.course.startTime, props.course.endTime))
-const isCrossDay = computed(() => props.course.endDate > props.course.startDate)
 
 /** 卡片主体文字：优先学生姓名，兜底课程名 */
 const title = computed(() => props.course.studentName || props.course.name || '未命名课程')
@@ -139,7 +138,7 @@ function onStatusClick() {
         <view class="mt-0.5 flex flex-wrap items-center gap-x-1 txt-sub">
           <text v-if="subtitle" class="truncate">{{ subtitle }}</text>
           <text v-if="subtitle" class="text-gray-300">·</text>
-          <text v-if="showDate">{{ course.startDate }}<template v-if="isCrossDay">~{{ course.endDate }}</template> </text>
+          <text v-if="showDate">{{ course.startDate }} </text>
           <text>{{ course.startTime }}-{{ course.endTime }}（{{ hours }}h）</text>
         </view>
         <view v-if="course.meetingUrl" class="mt-1 flex items-center gap-1 text-2xs text-indigo-500">
