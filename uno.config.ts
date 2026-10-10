@@ -106,6 +106,7 @@ export default defineConfig({
     'i-carbon-zoom-out',
     'i-carbon-calendar-heat-map',
     'i-carbon-rotate',
+    'i-carbon-rotate-clockwise',
     'i-carbon-arrow-left',
     // 设置页图标
     'i-carbon-export',

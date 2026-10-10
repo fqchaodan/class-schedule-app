@@ -33,14 +33,14 @@ function goBack() {
 
 <template>
   <view
-    class="shrink-0 flex items-center bg-white border-b border-gray-100 px-3"
+    class="flex shrink-0 items-center border-b border-gray-100 bg-white px-3"
     :style="{ paddingTop: `${statusBarHeight}px`, height: `${statusBarHeight + 44}px` }"
   >
     <!-- 左侧：返回按钮 -->
-    <view class="flex w-12 shrink-0 items-center">
+    <view class="w-12 flex shrink-0 items-center">
       <view
         v-if="showBack"
-        class="flex h-8 w-8 items-center justify-center rounded-full text-gray-700 active:bg-gray-100"
+        class="h-8 w-8 flex items-center justify-center rounded-full text-gray-700 active:bg-gray-100"
         @click="goBack"
       >
         <view class="i-carbon-arrow-left text-xl" />
@@ -51,7 +51,7 @@ function goBack() {
       <text class="truncate text-base text-gray-900 font-semibold">{{ title }}</text>
     </view>
     <!-- 右侧：插槽 -->
-    <view class="flex w-12 shrink-0 justify-end">
+    <view class="w-12 flex shrink-0 justify-end">
       <slot name="right" />
     </view>
   </view>

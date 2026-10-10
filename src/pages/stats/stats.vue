@@ -259,7 +259,7 @@ const groupOptions = ['student', 'course'] as const
           v-model:value="rangeType"
           :options="rangeOptions as unknown as string[]"
           theme="outline"
-          custom-class="!w-auto"
+          custom-class="!w-auto !align-middle"
           @change="(item: any) => rangeType = item.value"
         >
           <template #label="{ option }">

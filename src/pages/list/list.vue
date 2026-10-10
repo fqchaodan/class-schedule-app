@@ -92,6 +92,19 @@ function isTodayIdx(i: number) {
 // 横屏时只显示内容区 + 浮动旋转按钮，其他一律隐藏
 // isLandscape 是全局状态（@/store/landscape），tabbar 组件也读取此值来隐藏
 // 横屏列宽用 CSS 百分比布局（见模板），不依赖 JS 读窗口宽度，避免旋转后宽度刷新不及时导致看板只占部分宽度
+//
+// 微信小程序不支持运行时切换屏幕方向（pageOrientation 只能在 pages.json 静态配置，
+// 也没有 screen.orientation / plus.screen），因此 MP 端不提供旋转入口，
+// 且下面 rotateScreen 内的 MP 分支直接返回，避免 isLandscape 被置真后卡在「假横屏」无法退出。
+
+// 是否提供横屏入口（小程序端关闭）
+const canRotate = ref(true)
+// #ifdef MP
+canRotate.value = false
+// 保险：小程序端若因历史持久化数据等原因残留横屏状态，进入本页时强制复位，
+// 否则 tabbar 会被隐藏且没有旋转按钮可退出
+isLandscape.value = false
+// #endif
 
 // 组件卸载时清理过渡定时器，避免内存泄漏
 onUnmounted(() => {
@@ -170,6 +183,11 @@ const bottomPadding = computed(() => bottomBarHeight.value)
 async function rotateScreen() {
   if (isRotating.value)
     return
+  // #ifdef MP
+  // 小程序无法运行时切换方向，直接给出提示（理论上入口已隐藏，此处为二次保险）
+  uni.showToast({ title: '小程序端不支持横屏，可缩放看板', icon: 'none', duration: 2000 })
+  return undefined
+  // #endif
   isRotating.value = true
 
   if (isLandscape.value) {
@@ -247,6 +265,7 @@ function openDetail(course: Course) {
         </view>
         <view class="flex items-center gap-1.5">
           <wd-button
+            v-if="canRotate"
             variant="text"
             size="small"
             icon="rotate-right"
@@ -356,7 +375,7 @@ function openDetail(course: Course) {
 
     <!-- 横屏：浮动旋转按钮（右上角） -->
     <view
-      v-if="isLandscape"
+      v-if="isLandscape && canRotate"
       class="fixed right-3 top-3 z-50 flex items-center gap-2 rounded-full bg-white/80 px-2 py-1 shadow-md backdrop-blur"
     >
       <wd-button
@@ -375,7 +394,7 @@ function openDetail(course: Course) {
       :style="{ opacity: overlayOpacity, transition: 'opacity 250ms ease-in-out' }"
     >
       <view class="flex flex-col items-center gap-3">
-        <view class="i-carbon-renewal-import animate-spin text-3xl text-indigo-500" />
+        <view class="i-carbon-rotate-clockwise animate-spin text-3xl text-indigo-500" />
         <text class="text-sm text-gray-400">旋转中...</text>
       </view>
     </view>

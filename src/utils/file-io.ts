@@ -233,6 +233,108 @@ export function exportFileApp(data: ExportFile, filename: string): Promise<strin
 }
 
 /**
+ * 小程序端导出：写入小程序文件系统，然后通过「转发到聊天」让用户保存
+ *
+ * 小程序无法直接下载文件到本地相册/文件夹，只能：
+ *   1. 用 FileSystemManager 写文件到 USER_DATA_PATH（应用私有目录）
+ *   2. 调用 wx.shareFileMessage 弹出系统分享面板，用户转发到聊天/文件传输助手后即可长期保存
+ */
+export function exportFileMp(data: ExportFile, filename: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    // #ifdef MP
+    const fs = uni.getFileSystemManager()
+    // uni.env 在部分版本的类型定义中缺失，用 wx.env 兜底（二者在小程序端等价）
+    const userDataPath = (uni as unknown as { env?: { USER_DATA_PATH: string } }).env?.USER_DATA_PATH
+      ?? (globalThis as unknown as { wx?: { env?: { USER_DATA_PATH: string } } }).wx?.env?.USER_DATA_PATH
+      ?? ''
+    if (!userDataPath) {
+      reject(new Error('无法获取小程序文件目录'))
+      return
+    }
+    const filePath = `${userDataPath}/${filename}`
+    fs.writeFile({
+      filePath,
+      data: JSON.stringify(data, null, 2),
+      encoding: 'utf8',
+      success: () => {
+        // 写入成功后再走分享（分享面板需在用户交互后调起，此处由 cell 点击触发，满足要求）
+        uni.shareFileMessage({
+          filePath,
+          fileName: filename,
+          success: () => resolve(filePath),
+          // 用户取消分享不算失败，文件仍在本地，下次可重新导出
+          fail: (err) => {
+            const msg = String(err?.errMsg || '')
+            if (msg.includes('cancel'))
+              resolve(filePath)
+            else
+              reject(new Error('打开分享面板失败'))
+          },
+        })
+      },
+      fail: () => reject(new Error('写入文件失败')),
+    })
+    // #endif
+    // #ifndef MP
+    reject(new Error('仅支持小程序端'))
+    // #endif
+  })
+}
+
+/**
+ * 小程序端导入：从聊天记录选择文件并读取 JSON 内容
+ *
+ * 小程序无法浏览本地文件系统，唯一可控的入口是「从聊天记录选择文件」
+ * （用户需先把备份文件发到任意聊天/文件传输助手）。
+ */
+export function pickImportFileMp(): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    // #ifdef MP
+    let settled = false
+    const finish = (fn: () => void) => {
+      if (settled)
+        return
+      settled = true
+      fn()
+    }
+
+    uni.chooseMessageFile({
+      count: 1,
+      type: 'file',
+      extension: ['json'],
+      success: (res) => {
+        const file = res?.tempFiles?.[0]
+        if (!file?.path) {
+          finish(() => reject(new Error('未选择文件')))
+          return
+        }
+        const fs = uni.getFileSystemManager()
+        fs.readFile({
+          filePath: file.path,
+          encoding: 'utf8',
+          success: (r) => {
+            finish(() => {
+              try {
+                resolve(JSON.parse(String(r.data)))
+              }
+              catch {
+                reject(new Error('文件不是合法的 JSON'))
+              }
+            })
+          },
+          fail: () => finish(() => reject(new Error('读取文件失败'))),
+        })
+      },
+      fail: () => finish(() => reject(new Error('未选择文件'))),
+    })
+    // #endif
+    // #ifndef MP
+    reject(new Error('仅支持小程序端'))
+    // #endif
+  })
+}
+
+/**
  * APP 端导入：弹出文件选择器，读取用户选择的 JSON 文件
  *
  * 使用 plus.io.chooseFile 选择文件，然后通过 Native.js (java.io.FileInputStream)

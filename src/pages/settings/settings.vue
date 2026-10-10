@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ExportFile } from '@/types/course'
-import { buildExportFile, exportFileApp, pickImportFileApp, validateImportFile } from '@/utils/file-io'
+import { buildExportFile, exportFileApp, exportFileMp, pickImportFileApp, pickImportFileMp, validateImportFile } from '@/utils/file-io'
 import { requestNotificationPermission, rescheduleNotifications, scheduleCourseNotifications } from '@/utils/notification'
 import { safeAreaBottom, statusBarHeight } from '@/utils/systemInfo'
 import { bottomBarHeight, isTablet } from '@/store/device'
@@ -96,10 +96,19 @@ function exportData() {
   })
   // #endif
   // #ifdef MP
-  dialog.alert({
-    title: '暂不支持',
-    msg: '小程序端暂不支持文件导出，请使用 H5 或 APP 端导出备份文件。',
-  })
+  uni.showLoading({ title: '导出中...', mask: true })
+  exportFileMp(data, filename)
+    .then(() => {
+      uni.hideLoading()
+      dialog.alert({
+        title: '导出成功',
+        msg: '备份文件已生成。若刚才取消了分享，可再次点击「导出全部数据」重新发送；转发到「文件传输助手」或任意聊天即可长期保存。',
+      })
+    })
+    .catch(() => {
+      uni.hideLoading()
+      toast.error('导出失败')
+    })
   // #endif
 }
 
@@ -152,10 +161,18 @@ function pickImportFile() {
     })
   // #endif
   // #ifdef MP
-  dialog.alert({
-    title: '暂不支持',
-    msg: '小程序端暂不支持文件导入，请使用 H5 或 APP 端导入备份文件。',
-  })
+  uni.showLoading({ title: '请选择文件...', mask: true })
+  pickImportFileMp()
+    .then((raw) => {
+      uni.hideLoading()
+      handleImportParsed(raw)
+    })
+    .catch((err: Error) => {
+      uni.hideLoading()
+      if (err.message !== '仅支持小程序端' && err.message !== '未选择文件') {
+        toast.error(err.message || '导入失败')
+      }
+    })
   // #endif
 }
 

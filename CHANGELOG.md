@@ -1,5 +1,35 @@
 # 更新日志
 
+## 0.3.0 (2026-10-10)
+
+### 新增功能
+
+#### 微信小程序端导入导出（真正实现）
+- 小程序端不再只给「暂不支持」提示，改为可用：导出写入小程序私有目录后调起微信分享面板，导入从聊天记录选择文件
+- `src/utils/file-io.ts` 新增 `exportFileMp(data, filename)`：`FileSystemManager.writeFile()` 写入 `${USER_DATA_PATH}/${filename}` → `uni.shareFileMessage()` 转发到聊天长期保存；用户取消分享不算失败
+- `src/utils/file-io.ts` 新增 `pickImportFileMp()`：`uni.chooseMessageFile({ type: 'file', extension: ['json'] })` 从聊天记录选文件 → `readFile` 读取 → `JSON.parse`
+- 两函数均以 `#ifndef MP → reject` 兜底，与 APP 版结构对称；解析后的校验/预览/合并流程完全复用，无需区分平台
+- 设置页 `exportData()` / `pickImportFile()` 的 `#ifdef MP` 分支接入上述实现（`uni.showLoading` + 结果提示）
+
+### 优化改进
+
+#### 首页移除「周/日」视图切换
+- 移除 `wd-segmented` 周/日切换，首页改为固定周视图，删除日视图分支与相关空状态
+- 顶部恢复为「标题行 + 日期导航行」两行结构；`prevPeriod`/`nextPeriod`/`goToday` 简化为只操作 `curWeekStart`
+- `src/types/course.ts`：删除已无引用的 `AppSettings.defaultView` 字段
+- 原因：自定义导航栏右上角始终被微信胶囊遮挡，控件挪走/让位均不可靠，最终从需求层面去掉该入口
+
+#### 看板页小程序端降级
+- 新增 `canRotate` 标记，小程序端为 `false`：隐藏工具栏旋转按钮与横屏浮动旋转按钮
+- `rotateScreen()` 小程序分支直接 toast 提示并返回，防止 `isLandscape` 被置真后卡在无法退出的「假横屏」
+- 小程序端进入看板页时强制复位 `isLandscape`
+- 竖屏看板与缩放（8 档）在小程序端保持可用
+
+### 构建与资源
+- `uno.config.ts`：safelist 补充 `i-carbon-rotate-clockwise`（替换旋转蒙层图标，原先使用的 `i-carbon-renewal-import` 加载失败）
+- `src/components/NavBar.vue`：统一原子类书写顺序（无功能变更）
+- `env/.env`：更新微信小程序 AppID
+
 ## 0.2.1 (2026-09-08)
 
 ### Bug 修复

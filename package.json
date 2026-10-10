@@ -1,7 +1,7 @@
 {
   "name": "class-schedule-app",
   "type": "module",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "packageManager": "pnpm@10.10.0",
   "description": "番茄课表 - 轻量级家教课程管理工具，基于 uniapp + Vue3 + TypeScript",
   "author": "fqcd",
