@@ -69,10 +69,10 @@ export default defineConfig({
   ],
   shortcuts: [
     {
-      center: 'flex justify-center items-center',
+      'center': 'flex justify-center items-center',
       // ---------- 全站设计令牌（样式事实源，功能无关） ----------
       /** 标准卡片：白底 + 细边框 + 柔和阴影 */
-      card: 'box-border rounded-2xl bg-white border border-gray-100 shadow-card',
+      'card': 'box-border rounded-2xl bg-white border border-gray-100 shadow-card',
       /** 页面大标题 */
       'txt-title': 'text-lg text-gray-900 font-bold',
       /** 卡片主标题 */

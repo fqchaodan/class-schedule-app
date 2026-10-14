@@ -6,7 +6,8 @@ import { durationHours, formatDateTime } from '@/utils/time'
 import { safeAreaBottom } from '@/utils/systemInfo'
 import { lightTap } from '@/utils/feedback'
 import { isTablet } from '@/store/device'
-import { useDialog, useToast } from '@wot-ui/ui'
+import { useDialog } from '@wot-ui/ui/components/wd-dialog'
+import { useToast } from '@wot-ui/ui/components/wd-toast'
 
 definePage({
   style: {
@@ -109,7 +110,7 @@ function remove() {
     .confirm({
       title: '删除课程',
       msg: '删除后可在"设置-回收站"中恢复，确定删除？',
-      confirmButtonColor: '#ef4444',
+      confirmButtonProps: { type: 'danger' },
     })
     .then(() => {
       courseStore.removeCourse(courseId.value)

@@ -1,35 +1,40 @@
 <script setup lang="ts">
 import { onHide, onLaunch, onShow } from '@dcloudio/uni-app'
-import { getCurrentInstance, onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted } from 'vue'
 import { navigateToInterceptor } from '@/router/interceptor'
+import { flushPersistStorage } from '@/store/persist-storage'
 import { initDeviceState } from '@/store/device'
 import { tabbarStore } from '@/tabbar/store'
-import { permission } from '@/router/permission'
-import { createNotificationChannel, requestNotificationPermission, scheduleCourseNotifications, startForegroundService, rescheduleNotifications } from '@/utils/notification'
-
-const { proxy } = (getCurrentInstance() || {}) as any
-const router = proxy?.$router
-
-router && permission.install(router)
+import { createNotificationChannel, requestNotificationPermission, rescheduleNotifications, scheduleCourseNotifications, startForegroundService, stopForegroundService } from '@/utils/notification'
+// #ifdef MP-WEIXIN
+import checkUpdate from '@/utils/updateManager.wx'
+// #endif
 
 onLaunch((options) => {
   console.log('App.vue onLaunch', options)
   // 初始化窗口尺寸监听（平板判定 / 旋转 / 分屏）
   initDeviceState()
+  // #ifdef MP-WEIXIN
+  // 检查小程序新版本（有更新时提示重启应用）
+  checkUpdate()
+  // #endif
   // #ifdef APP-PLUS
-  // APP 启动时：创建通知渠道 + 请求权限 + 启动前台服务
+  // APP 启动时：创建通知渠道；仅当用户开启了课前提醒时才请求权限、启动前台服务并调度
   createNotificationChannel()
-  requestNotificationPermission().then((granted) => {
-    if (!granted) {
-      console.warn('通知权限未授予，课前提醒功能将无法正常工作')
-    }
-  })
-  startForegroundService()
-  // 启动后调度今日课程通知
   const appStore = useAppStore()
   const courseStore = useCourseStore()
   if (appStore.settings.notificationEnabled) {
-    scheduleCourseNotifications(courseStore.courses, appStore.settings)
+    requestNotificationPermission().then((granted) => {
+      if (!granted) {
+        console.warn('通知权限未授予，课前提醒功能将无法正常工作')
+      }
+    })
+    startForegroundService()
+    scheduleCourseNotifications(courseStore.activeCourses, appStore.settings)
+  }
+  else {
+    // 用户未开启提醒：清理历史版本可能残留在状态栏的常驻通知
+    stopForegroundService()
   }
   // #endif
 })
@@ -48,15 +53,20 @@ onShow((options) => {
   const appStore = useAppStore()
   const courseStore = useCourseStore()
   if (appStore.settings.notificationEnabled) {
-    rescheduleNotifications(courseStore.courses, appStore.settings)
+    rescheduleNotifications(courseStore.activeCourses, appStore.settings)
   }
   // #endif
 })
 onHide(() => {
   console.log('App Hide')
+  // 进入后台前把防抖中的持久化数据强制落盘，避免未写入窗口内进程被回收
+  flushPersistStorage()
   // #ifdef APP-PLUS
-  // 应用进入后台：启动前台服务保活
-  startForegroundService()
+  // 仅在开启课前提醒时保活，避免用户看到关不掉的常驻通知
+  const appStore = useAppStore()
+  if (appStore.settings.notificationEnabled) {
+    startForegroundService()
+  }
   // #endif
 })
 

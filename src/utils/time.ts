@@ -1,7 +1,10 @@
 import dayjs from 'dayjs'
+import customParseFormat from 'dayjs/plugin/customParseFormat'
 import isoWeek from 'dayjs/plugin/isoWeek'
 
 dayjs.extend(isoWeek)
+// 严格解析需要该插件：否则 isValidDate('2026-02-30') 会被自动滚动为 3 月 2 日而误判为合法
+dayjs.extend(customParseFormat)
 
 export type DateStr = string // YYYY-MM-DD
 export type TimeStr = string // HH:mm 或 24:00
@@ -57,10 +60,13 @@ export function dateRangeDays(start: DateStr, end: DateStr): DateStr[] {
   return days
 }
 
-/** 课程是否覆盖某一天 */
+/**
+ * 课程是否覆盖某一天
+ *  YYYY-MM-DD 的字典序与时间序一致，直接字符串比较即可，
+ *  避免在列表渲染热路径上为每门课创建多个 dayjs 实例
+ */
 export function courseCoversDay(startDate: DateStr, endDate: DateStr, day: DateStr): boolean {
-  const d = dayjs(day)
-  return !d.isBefore(dayjs(startDate), 'day') && !d.isAfter(dayjs(endDate), 'day')
+  return startDate <= day && day <= endDate
 }
 
 /** 某天所在周的周一 */

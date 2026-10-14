@@ -2,7 +2,7 @@
 import type { Course } from '@/types/course'
 import { computed, ref } from 'vue'
 import { WEEKDAY_LABELS } from '@/types/course'
-import { addWeeks, shortDate, timeToMinutes, today, weekDays, weekStart } from '@/utils/time'
+import { addWeeks, courseCoversDay, shortDate, timeToMinutes, today, weekDays, weekStart } from '@/utils/time'
 import { safeAreaBottom, statusBarHeight } from '@/utils/systemInfo'
 import { lightTap } from '@/utils/feedback'
 import { isLandscape } from '@/store/landscape'
@@ -142,8 +142,19 @@ function zoomIn() {
 }
 
 // ---------- 课程定位 ----------
+// 单次遍历生成「日期 -> 课程」索引：模板按列取用 + 汇总统计共用，避免反复全量扫描
+const coursesByDay = computed(() => {
+  const map = new Map<string, Course[]>(days.value.map(d => [d, [] as Course[]]))
+  for (const c of courseStore.sortedByTime) {
+    for (const day of days.value) {
+      if (courseCoversDay(c.startDate, c.endDate, day))
+        map.get(day)!.push(c)
+    }
+  }
+  return map
+})
 function coursesOnDay(day: string): Course[] {
-  return courseStore.coursesOnDay(day)
+  return coursesByDay.value.get(day) ?? []
 }
 function courseTop(c: Course): number {
   const m = Math.max(timeToMinutes(c.startTime), DAY_START * 60)
@@ -175,7 +186,12 @@ function cColor(c: Course) {
   return colorOf(c.studentName || c.name || '未命名')
 }
 
-const weekTotal = computed(() => days.value.reduce((n, d) => n + courseStore.coursesOnDay(d).length, 0))
+const weekTotal = computed(() => {
+  let n = 0
+  for (const list of coursesByDay.value.values())
+    n += list.length
+  return n
+})
 
 // 横屏看板或平板（侧边导航接管）时底部不需要 padding
 const bottomPadding = computed(() => bottomBarHeight.value)

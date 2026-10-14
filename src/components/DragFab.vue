@@ -6,6 +6,7 @@
  * - 使用 position: fixed + touch 事件实现，兼容 H5 / 小程序 / APP
  */
 import { lightTap } from '@/utils/feedback'
+import { bottomBarHeight } from '@/store/device'
 
 const emit = defineEmits<{
   click: []
@@ -44,9 +45,9 @@ function initPosition() {
   const info = uni.getWindowInfo()
   vw = info.windowWidth
   vh = info.windowHeight
-  // 初始放在右下角
+  // 初始放在右下角（底部避让 tabbar 实际占位：平板侧边导航/横屏时为 0）
   x.value = vw - SIZE - INIT_RIGHT
-  y.value = vh - SIZE - INIT_BOTTOM - 50 // 减去 tabbar 高度估算
+  y.value = vh - SIZE - INIT_BOTTOM - bottomBarHeight.value
   inited.value = true
 }
 
@@ -121,7 +122,7 @@ onUnmounted(() => {
 <template>
   <view
     v-if="inited"
-    class="fixed z-50 flex items-center justify-center rounded-full bg-indigo-500 text-white shadow-float active:scale-90 transition-transform"
+    class="fixed z-50 flex items-center justify-center rounded-full bg-indigo-500 text-white transition-transform shadow-float active:scale-90"
     :style="{ left: `${x}px`, top: `${y}px`, width: `${SIZE}px`, height: `${SIZE}px` }"
     @touchstart="onTouchStart"
     @touchmove.stop.prevent="onTouchMove"

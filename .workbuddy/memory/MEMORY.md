@@ -1,12 +1,13 @@
 # class-schedule-app 项目笔记
 
 ## 技术栈与结构
-- unibest v4.4.1 base 模板（uni-app + Vue3 + TS + Vite + UnoCSS + Pinia + pinia-plugin-persistedstate），未引入 UI 库，纯 UnoCSS + 原生组件。
-- 3 tab：pages/index/index（**课表，仅周视图**：7 天分组卡片，顶部「标题行 + 日期导航行」（‹ 日期 › 今天 + 本周共 N 节课），无右上角控件）、pages/list/list（**每周看板**：课程表网格，时间轴 06:00-24:00 sticky 左 + 7 列 + 课程绝对定位，scroll-x 横滚整表 + scroll-y 纵滚，列宽 120×缩放[0.8,1,1.2,1.4]，右上角 zoom +/-；周导航 ‹/›/今天）、pages/stats/stats（统计）；非 tab 页：course/edit、course/detail、settings、recycle、templates。
-- 数据模型见 src/types/course.ts：Course（**studentName 必填为主体**、name 选填备注、自定义起止时间、跨天、notes、fee、meetingUrl 会议链接、completed 已上状态、templateId）、CourseTemplate（kind: cycle周期排课 | course课程模板，课程模板含 studentName/courseName/meetingUrl）、RecycleItem、ExportFile（schemaVersion:1）。
-- store：course（CRUD/冲突检测/toggleCompleted/备注/搜索/insertMany/replaceById）、recycle、template（buildCourses 批量生成 + saveCourseAsTemplate 存课程模板）、app（defaultFee/通知设置）。
-- 冲突规则：边界相接不算冲突；跨天课按每天时间段比较；保存时弹 ConflictDialog 可"仍要保存"。
-- **视觉规范（2026-09-02 全面去渐变化）**：主色 indigo-500 仅做小面积点缀（FAB 纯色 bg-indigo-500、图标、进度条、激活态 tag），**全站不再使用大面积 indigo→blue 渐变块**（gradient-primary/gradient-primary-br shortcut 已从 uno.config 删除）；头部/工具条统一 `bg-gradient-to-b from-indigo-50 to-white` 浅染色（勿改回纯白或品牌渐变，用户两头都嫌丑），标题 text-gray-900；tabbar **无品牌激活色**：激活 #111827（+font-medium）/未激活 #9ca3af，顶部渐变指示条已删；卡片 rounded-2xl + bg-white + shadow-card，CourseCard 无外框线、仅左侧 border-l-4 状态色条（已上 emerald-400/未上 amber-400）+ 渐变首字头像（6 组渐变在 uno safelist，保留）；统计页汇总卡头部 indigo-50 染色 + 数字 tabular-nums；列表空状态用紧凑虚线空槽（border-dashed）而非 wd-empty 大图标。
+- unibest v4.4.1 base 模板（uni-app + Vue3 + TS + Vite + UnoCSS + Pinia + pinia-plugin-persistedstate），UI 库为 **wot-ui（@wot-ui/ui 2.3.2，easycom 自动引入 wd-*）** + UnoCSS 原子类。
+- **4 tab**（2026-10-14 核实）：pages/index/index（**课表，仅周视图**，带「时间冲突」标记 + 长按删除）、pages/list/list（**每周看板**，06:00-24:00 时间轴 + 7 列绝对定位，缩放 8 档 [0.5,0.65,0.8,1,1.2,1.4,1.6,2] 默认 0.65）、pages/stats/stats、pages/settings/settings；非 tab 页：course/edit、course/detail、recycle、templates。**共 8 页全在主包**（未分包，构建产物约 670KB，远低于 2MB 限制）。
+- 数据模型见 src/types/course.ts：Course（**studentName 必填为主体**、name 选填、**仅单日课程（endDate === startDate，导入已强制校验）**、notes、fee、meetingUrl、completed、paid、templateId）、CourseTemplate（kind: cycle | course）、RecycleItem、ExportFile（schemaVersion:1）。
+- **多课表（2026-10-14）**：每张课表对应一位老师。Schedule 实体 + `Course.scheduleId`（**缺省=默认课表 DEFAULT_SCHEDULE_ID='default'，历史数据零迁移**）；useScheduleStore（schedule.ts，persist）管理 create/rename/switchTo/removeSchedule（默认与非空课表不可删）。course store 的 sortedByTime/detectConflicts 均为**当前课表范围**（activeCourses），addCourse 打 activeId 戳，insertMany 不打戳（导入/恢复保留原归属）。设置页「课表管理」区块管理（区块 UI 定稿：当前课表=行首 indigo 对勾 + 标题 indigo-600 font-medium，其余行留同宽空槽；「新建课表」为列表下方虚线加号按钮，勿改回 cell 行）；首页点击标题 actionSheet 切换（>6 张引导去设置）。导出含 schedules 字段，validateImportFile 宽松解析；模板生成课程归入当前课表；回收站恢复时归属失效回退默认课表；通知调度只对当前课表。
+- store：course（CRUD/冲突检测/toggleCompleted/togglePaid/备注/insertMany/replaceById；**search 与 coursesOnDay 已于 2026-10-14 删除**）、recycle、template、app、persist-storage（**防抖持久化 300ms + onHide flush**）、device（平板/尺寸）、landscape（全局横屏标志）。
+- 冲突规则：边界相接不算冲突；同一天内时段重叠即冲突（首页按天缓存 pairwise 检测标红）；保存时弹 ConflictDialog 可"仍要保存"。
+- **视觉规范（2026-09-02 全面去渐变化）**：主色 indigo-500 仅做小面积点缀（FAB 纯色 bg-indigo-500、图标、进度条、激活态 tag），**全站不再使用大面积 indigo→blue 渐变块**（gradient-primary/gradient-primary-br shortcut 已从 uno.config 删除）；头部/工具条统一 `bg-gradient-to-b from-indigo-50 to-white` 浅染色（勿改回纯白或品牌渐变，用户两头都嫌丑），标题 text-gray-900；tabbar 激活色为 indigo-500 `#6366f1`（`tabbar/index.vue` 与 `SideRail.vue`，2026-10-14 核实；历史笔记中的 #111827 已过时）；卡片 rounded-2xl + bg-white + shadow-card，CourseCard 无外框线、仅左侧 border-l-4 状态色条（已上 emerald-400/未上 amber-400）+ 渐变首字头像（6 组渐变在 uno safelist，保留）；统计页汇总卡头部 indigo-50 染色 + 数字 tabular-nums；列表空状态用紧凑虚线空槽（border-dashed）而非 wd-empty 大图标。
 - **页面布局铁律**：所有页面根容器 `flex h-screen flex-col overflow-hidden bg-gray-50`（页面不滚动、背景撑满）；顶部工具条/搜索/tab `shrink-0` 固定；内容区统一 `h-0 min-h-0 flex-1 overflow-y-auto`（h-0 防 flex 子项溢出、与头部一起撑满视口）；**有输入/textarea 的页（edit/detail）底部操作条用 `fixed bottom-0 left-0 right-0 z-20`**，内容区 pb-32 让位；FAB `fixed bottom-26 right-6` 放滚动容器外；tab 页内容区需 pb-28 避开自定义 tabbar。
 - **课程模板流程**：编辑/详情页"存为模板"（模板名=学生姓名，同名覆盖）→ 模板管理页"用于新增"跳 `edit?tplId=xx` 预填 → 编辑页顶部"从模板填充"选择器。导入校验强制学生姓名非空、课程名可空。
 - **胶囊安全区（2026-10-10 结论：已放弃让位方案）**：首页原本右上角的「周/日」`wd-segmented` 在小程序下总被微信胶囊遮挡，试过 paddingRight 让位、flex 预留区等三种方案均未彻底解决，**最终按用户要求直接删掉周/日切换功能**，首页只保留周视图。`src/utils/platform.ts` 已删除，NavBar/stats 的让位改动已还原。**当前所有页面右上角都没有自定义控件，不需要做胶囊让位**；今后若再往右上角加东西，记住：微信胶囊固定绘制在右上角（约 87×32pt、距右 10pt），元素压上去必被挡且不可点击，最稳妥是**别把控件放右上角**。
@@ -16,13 +17,19 @@
 - **`AppSettings.defaultView` 已删除（2026-10-10）**：周/日切换功能移除后该字段无引用，已从 `src/types/course.ts` 的 `AppSettings` 与 `DEFAULT_SETTINGS` 中删除。
 - **微信小程序平台能力边界与降级约定（2026-10-10）**：
   - **横屏（看板）**：小程序**不支持运行时切屏**（`pageOrientation` 只能 pages.json 静态配），因此 `list.vue` 用 `canRotate`（`#ifdef MP` 置 false）隐藏工具条旋转按钮与右上角浮动旋转按钮；`rotateScreen()` 的 MP 分支直接 toast 并 `return undefined`；另在 MP 段强制 `isLandscape.value = false` 兜底。**关键风险**：`isLandscape` 是全局状态，置真会同时隐藏标题/工具条/tabbar，小程序端若无旋转能力就会卡死在「假横屏」，任何新增入口都必须保证能退出。小程序端看板竖屏 + 缩放（ZOOM_LEVELS 8 档）仍可用。
-  - **文件导入导出**：小程序无 DOM（无 Blob/`a.download`/`<input type=file>`），但**可以实现**：导出 = `uni.getFileSystemManager().writeFile()` 写 `${USER_DATA_PATH}/xxx.json` → `uni.shareFileMessage()` 转发到聊天长期保存（用户取消分享不算失败）；导入 = `uni.chooseMessageFile({ type:'file', extension:['json'] })` 从聊天记录选文件 → `fs.readFile` → `JSON.parse`。实现在 `src/utils/file-io.ts` 的 `exportFileMp` / `pickImportFileMp`（配 `#ifndef MP → reject` 兜底），settings.vue 的 `#ifdef MP` 分支调用它们，**后续解析/校验/预览/doImport 流程完全复用，无需区分平台**。
+  - **文件导入导出**：小程序无 DOM（无 Blob/`a.download`/`<input type=file>`），但**可以实现**：导出 = `fs.writeFileSync()` **同步**写 `${USER_DATA_PATH}/xxx.json` → 紧接着 `uni.shareFileMessage()` 转发到聊天长期保存（用户取消分享不算失败）；导入 = `uni.chooseMessageFile({ type:'file', extension:['json'] })` 从聊天记录选文件 → `fs.readFile` → `JSON.parse`。实现在 `src/utils/file-io.ts` 的 `exportFileMp` / `pickImportFileMp`（配 `#ifndef MP → reject` 兜底），settings.vue 的 `#ifdef MP` 分支调用它们，**后续解析/校验/预览/doImport 流程完全复用，无需区分平台**。
+  - **`shareFileMessage` 硬约束（2026-10-14 真机踩坑）**：官方文档明确「**仅在点击行为时调用**」——必须与用户点击处于**同一同步调用栈**。`exportFileMp` 因此用 `writeFileSync` 同步写入后**直连**调用分享（导出链路 tap → exportData → exportFileMp → writeFileSync → shareFileMessage 全同步，中间不含任何 await/回调/showLoading 无关 UI 调用）；放进 `writeFile` 的 success 回调等异步回调里，真机必报 `shareFileMessage:fail can only be invoked by user TAP gesture.`（开发者工具模拟器同样报此错，真机调试也无法绕过）。**今后凡遇微信敏感 API（shareFileMessage / chooseMessageFile 等），一律保证在点击事件的同步调用栈内调用**，禁止放入异步回调。
   - **`uni.env` 无类型声明（踩坑）**：`@dcloudio/types` 里 `Uni` 没有 `env`，写 `uni.env.USER_DATA_PATH` 会报 TS2339（即使外层有 `#ifdef MP`，MP 构建的类型检查照样报）。用 `(uni as unknown as { env?: {...} }).env?.USER_DATA_PATH ?? globalThis.wx?.env?.USER_DATA_PATH ?? ''` 兜底。而 `getFileSystemManager` / `shareFileMessage` / `chooseMessageFile` **有**类型，直接 `uni.xxx` 即可，不要写 `(uni as any)`。
   - **`return` 后紧跟条件编译块会被 esbuild 警告**：`// #ifdef XXX` 段落里以裸 `return` 结尾时，esbuild 自动插分号会产生 `The following expression is not returned because of an automatically-inserted semicolon`。写成 `return undefined` 即可。
 
-## 环境注意事项（必读）
-- dev 用 `npx pnpm@10 dev`（全局 pnpm 被 safe-delete 补丁损坏）。
-- vite.config.ts 的三个 dts 已设 false；@uni-helper 两个插件的写文件调用已加 try/catch（重装 node_modules 后要重新打补丁）。
-- src/pages.json 与 src/manifest.json 是手动维护的生成文件（沙箱禁止 vite 改写）；新增页面时需手动把路由加进 src/pages.json。
-- 沙箱内新建文件可以，改写/删除已有文件不行；Write/Edit 工具不受限。
-- AutoImport dirs 已含 'src/store'；新增 store 文件无需手动配，但手维护的 src/types/auto-import.d.ts 需同步补声明（模板约定 dts:false 手维护）。
+## 环境与工程约定（2026-10-14 更新）
+- dev / build 用 `npx pnpm@10 xxx`（全局 pnpm 被 safe-delete 补丁损坏）；`npx pnpm@10` 走网络，偶尔 502 → 可改用 `./node_modules/.bin/uni build -p mp-weixin` 直接构建。
+- **生成物**：`src/pages.json`/`src/manifest.json` 由 pages.config.ts / manifest.config.ts 在 dev/build 时自动重新生成（**构建会覆盖手改，权限等改动一律改 config 源文件**）；`src/types/async-*.d.ts` 由 bundle-optimizer 生成。`auto-import.d.ts`/`uni-pages.d.ts`/`components.d.ts` 因插件 dts:false **不生成、需手维护**。
+- **.gitignore 已修正**：`src/types` 整目录忽略规则已移除（原规则会把核心 `course.ts` 一起忽略，导致新克隆无法构建）；src/types 下的文件需纳入版本管理（`git add src/types`）。
+- AutoImport dirs 已含 'src/store'；新增 store 文件需同步补 `src/types/auto-import.d.ts` 声明。
+- **门禁三条**：`pnpm type-check`（vue-tsc）/ `pnpm lint` / `pnpm test:run`，2026-10-14 起全绿（当时清掉 type-check 42 错 + lint 32 错）。
+- **tsconfig 未开 strict**：`if (x.ok) throw` 形式的类型收窄**不生效**（实测），判别联合的收窄要写成 `if (!x.ok) { ...; return }`，或测试里用 `expect(r).toMatchObject({...})`。`target` 已补 `esnext`（否则 Map 迭代报 TS2802）。
+- **wot-ui 注意**：`@wot-ui/ui` 根 index 会带出 useUpload.ts 的第三方类型错误 → 本项目一律**深路径导入** `@wot-ui/ui/components/wd-dialog|wd-toast`。`useDialog/useToast` 是 provide/inject 单例模式：**只能在页面层实例化一次**，列表卡片等重复组件里禁止调用（否则每张卡一套弹窗实例）。**wd-cell 没有 `icon` 插槽**（编译产物只有 prefix/suffix 等具名插槽）——`#icon` 内容会被静默丢弃，前缀内容一律用 `#prefix`（2026-10-14 发现：settings 页各分区原 `#icon` 图标从未渲染过，待用户确认后统一改）。
+- **Android 通知**：前台服务仅 `notificationEnabled` 为真时才启动（App onHide / 设置开关），关闭开关会 `stopForegroundService()` + 清定时器；启动时未开启则清理残留常驻通知。调度仍是 setTimeout（进程被杀即失效），**如需可靠定时需接 AlarmManager 原生方案**（届时再加回 SCHEDULE_EXACT_ALARM / RECEIVE_BOOT_COMPLETED 权限）。
+- **小程序端不支持课前提醒**：settings 页以 `supportsNotification` 显示降级说明而非空开关；小程序更新提示在 App.vue onLaunch 调 `utils/updateManager.wx.ts`。
+- 安卓导出：Android 11+ 分区存储下写公共 Download 必失败 → 自动回退应用沙盒；存储权限只在 Android ≤10 申请（manifest 权限已加 maxSdkVersion=32）。

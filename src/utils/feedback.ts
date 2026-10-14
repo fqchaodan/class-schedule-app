@@ -18,8 +18,9 @@ export function hapticFeedback(type: FeedbackType = 'light') {
     // Android 振动时长（毫秒）
     const duration = type === 'heavy' ? 50 : type === 'medium' ? 30 : 15
     if (plus.os.name === 'Android') {
-      const Context = plus.android.importClass('android.content.Context')
-      const mainActivity = plus.android.runtimeMainActivity()
+      // Native.js 桥接对象无类型定义，取 any 句柄使用
+      const mainActivity: any = plus.android.runtimeMainActivity()
+      const Context: any = plus.android.importClass('android.content.Context')
       const vibrator = mainActivity.getSystemService(Context.VIBRATOR_SERVICE)
       if (vibrator && vibrator.hasVibrator()) {
         vibrator.vibrate(duration)

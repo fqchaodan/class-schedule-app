@@ -1,10 +1,11 @@
 import type { Course, CourseDraft, CourseNote, NoteType } from '@/types/course'
-import { genId } from '@/types/course'
+import { DEFAULT_SCHEDULE_ID, genId } from '@/types/course'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { findConflicts } from '@/utils/conflict'
-import { addDays, courseCoversDay } from '@/utils/time'
+import { addDays } from '@/utils/time'
 import { useRecycleStore } from './recycle'
+import { useScheduleStore } from './schedule'
 
 export type { CourseDraft }
 
@@ -16,45 +17,40 @@ export const useCourseStore = defineStore(
     // ---------- 查询 ----------
     const getById = (id: string) => courses.value.find(c => c.id === id)
 
+    /** 当前课表下的课程（scheduleId 缺省视为默认课表） */
+    const activeCourses = computed(() => {
+      const sid = useScheduleStore().activeId
+      return courses.value.filter(c => (c.scheduleId ?? DEFAULT_SCHEDULE_ID) === sid)
+    })
+
+    /** 当前课表下按时间排序的课程（课表页/看板/统计均以此为准） */
     const sortedByTime = computed(() =>
-      [...courses.value].sort((a, b) =>
+      [...activeCourses.value].sort((a, b) =>
         a.startDate === b.startDate
           ? a.startTime.localeCompare(b.startTime)
           : a.startDate.localeCompare(b.startDate),
       ),
     )
 
-    /** 某天覆盖的课程（按开始时间排序） */
-    function coursesOnDay(day: string): Course[] {
-      return sortedByTime.value.filter(c => courseCoversDay(c.startDate, c.endDate, day))
-    }
-
-    /** 搜索：课程名 / 学生名模糊匹配；weekday 为 0-6（可选） */
-    function search(keyword = '', weekday?: number): Course[] {
-      const kw = keyword.trim().toLowerCase()
-      return sortedByTime.value.filter((c) => {
-        if (weekday != null) {
-          const startDow = new Date(`${c.startDate}T00:00:00`).getDay()
-          if (startDow !== weekday)
-            return false
-        }
-        if (!kw)
-          return true
-        return (
-          (c.name ?? '').toLowerCase().includes(kw)
-          || (c.studentName ?? '').toLowerCase().includes(kw)
-        )
-      })
+    /** 某课表（缺省 = 默认课表）下的全部课程 */
+    function coursesOfSchedule(scheduleId: string | undefined) {
+      const sid = scheduleId ?? DEFAULT_SCHEDULE_ID
+      return courses.value.filter(c => (c.scheduleId ?? DEFAULT_SCHEDULE_ID) === sid)
     }
 
     // ---------- 冲突 ----------
-    /** 检测冲突（不写入） */
+    /** 检测冲突（不写入），范围限定当前课表 */
     function detectConflicts(draft: CourseDraft, excludeId?: string) {
-      return findConflicts(courses.value, draft, excludeId)
+      return findConflicts(activeCourses.value, draft, excludeId)
+    }
+
+    /** 检测指定课表内的冲突（回收站恢复等场景：课程归属可能与当前激活课表不同） */
+    function detectConflictsInSchedule(scheduleId: string | undefined, draft: CourseDraft, excludeId?: string) {
+      return findConflicts(coursesOfSchedule(scheduleId), draft, excludeId)
     }
 
     // ---------- CRUD ----------
-    /** 新增课程；force=true 时忽略冲突直接保存。返回冲突列表（有冲突且未 force 时不保存） */
+    /** 新增课程（归入当前课表）；force=true 时忽略冲突直接保存。返回冲突列表（有冲突且未 force 时不保存） */
     function addCourse(draft: CourseDraft, force = false): Course[] {
       const conflicts = detectConflicts(draft)
       if (conflicts.length > 0 && !force)
@@ -62,6 +58,7 @@ export const useCourseStore = defineStore(
       const now = Date.now()
       const course: Course = {
         id: genId(),
+        scheduleId: useScheduleStore().activeId,
         studentName: draft.studentName,
         name: draft.name,
         startDate: draft.startDate,
@@ -144,25 +141,25 @@ export const useCourseStore = defineStore(
       return true
     }
 
-  /** 复制课程：日期默认平移 7 天，返回新课程草稿供编辑页预填 */
-  function duplicateCourse(id: string): (CourseDraft & { sourceName: string }) | null {
-    const source = getById(id)
-    if (!source)
-      return null
-    const shiftedDate = addDays(source.startDate, 7)
-    return {
-      studentName: source.studentName,
-      name: source.name,
-      startDate: shiftedDate,
-      endDate: shiftedDate,
-      startTime: source.startTime,
-      endTime: source.endTime,
-      fee: source.fee,
-      meetingUrl: source.meetingUrl,
-      notes: [],
-      sourceName: source.name ?? '',
+    /** 复制课程：日期默认平移 7 天，返回新课程草稿供编辑页预填 */
+    function duplicateCourse(id: string): (CourseDraft & { sourceName: string }) | null {
+      const source = getById(id)
+      if (!source)
+        return null
+      const shiftedDate = addDays(source.startDate, 7)
+      return {
+        studentName: source.studentName,
+        name: source.name,
+        startDate: shiftedDate,
+        endDate: shiftedDate,
+        startTime: source.startTime,
+        endTime: source.endTime,
+        fee: source.fee,
+        meetingUrl: source.meetingUrl,
+        notes: [],
+        sourceName: source.name ?? '',
+      }
     }
-  }
 
     /** 直接批量插入（模板生成 / 导入用） */
     function insertMany(list: Course[]) {
@@ -172,6 +169,19 @@ export const useCourseStore = defineStore(
     /** 删除某模板已生成的全部课程（重新生成前清理用） */
     function removeByTemplateId(templateId: string) {
       courses.value = courses.value.filter(c => c.templateId !== templateId)
+    }
+
+    /** 删除某课表下的全部课程（移入回收站）；用于删除课表前清理其课程 */
+    function removeCoursesOfSchedule(scheduleId: string | undefined): number {
+      const sid = scheduleId ?? DEFAULT_SCHEDULE_ID
+      const removed = courses.value.filter(c => (c.scheduleId ?? DEFAULT_SCHEDULE_ID) === sid)
+      if (removed.length === 0)
+        return 0
+      courses.value = courses.value.filter(c => (c.scheduleId ?? DEFAULT_SCHEDULE_ID) !== sid)
+      const recycle = useRecycleStore()
+      for (const c of removed)
+        recycle.push(c)
+      return removed.length
     }
 
     /** 覆盖同 id 课程（导入合并用） */
@@ -231,11 +241,12 @@ export const useCourseStore = defineStore(
 
     return {
       courses,
+      activeCourses,
       sortedByTime,
+      coursesOfSchedule,
       getById,
-      coursesOnDay,
-      search,
       detectConflicts,
+      detectConflictsInSchedule,
       addCourse,
       updateCourse,
       removeCourse,
@@ -246,6 +257,7 @@ export const useCourseStore = defineStore(
       duplicateCourse,
       insertMany,
       removeByTemplateId,
+      removeCoursesOfSchedule,
       replaceById,
       clearAll,
       addNote,

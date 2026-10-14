@@ -9,6 +9,8 @@ export default uniHelper({
     '**/uni_modules/',
     // 忽略原生插件目录
     '**/nativeplugins/',
+    // 忽略 AI 辅助 Skills 目录（第三方模板代码，不参与本项目的 lint 门禁）
+    '**/.agents/**',
     'dist',
     // unplugin-auto-import 生成的类型文件，每次提交都改变，所以加入这里吧，与 .gitignore 配合使用
     'auto-import.d.ts',
@@ -17,8 +19,6 @@ export default uniHelper({
     // 插件生成的文件
     'src/pages.json',
     'src/manifest.json',
-    // 忽略自动生成文件
-    'src/service/**',
   ],
   // https://eslint-config.antfu.me/rules
   rules: {

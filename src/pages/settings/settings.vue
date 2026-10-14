@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import type { ExportFile } from '@/types/course'
-import { buildExportFile, exportFileApp, exportFileMp, pickImportFileApp, pickImportFileMp, validateImportFile } from '@/utils/file-io'
-import { requestNotificationPermission, rescheduleNotifications, scheduleCourseNotifications } from '@/utils/notification'
+import { DEFAULT_SCHEDULE_ID } from '@/types/course'
+import { buildExportFile, downloadJsonH5, exportFileApp, exportFileMp, pickImportFileApp, pickImportFileMp, summarizeImport, validateImportFile } from '@/utils/file-io'
+import { clearAllNotificationTimers, requestNotificationPermission, rescheduleNotifications, scheduleCourseNotifications, stopForegroundService } from '@/utils/notification'
 import { safeAreaBottom, statusBarHeight } from '@/utils/systemInfo'
 import { bottomBarHeight, isTablet } from '@/store/device'
 import { lightTap } from '@/utils/feedback'
 import { today } from '@/utils/time'
-import { useDialog, useToast } from '@wot-ui/ui'
+import { useDialog } from '@wot-ui/ui/components/wd-dialog'
+import { useToast } from '@wot-ui/ui/components/wd-toast'
 
 definePage({
   style: {
@@ -18,37 +20,166 @@ definePage({
 const courseStore = useCourseStore()
 const templateStore = useTemplateStore()
 const recycleStore = useRecycleStore()
+const scheduleStore = useScheduleStore()
 const appStore = useAppStore()
 const dialog = useDialog()
 const toast = useToast()
+
+// 每次进入设置页兜底修复课表状态（持久化水合后默认课表缺失 / 激活 id 失效等异常）
+onShow(() => {
+  scheduleStore.ensureValid()
+})
 
 const defaultFeeRaw = ref(appStore.settings.defaultFee != null ? String(appStore.settings.defaultFee) : '')
 watch(defaultFeeRaw, (v) => {
   appStore.updateSettings({ defaultFee: v === '' ? undefined : Number(v) })
 })
 
+// ---------- 课表管理 ----------
+/** 课表列表（附每张课表的课程数，含默认课表） */
+const scheduleRows = computed(() => {
+  const counts = new Map<string, number>()
+  for (const c of courseStore.courses) {
+    const sid = c.scheduleId ?? DEFAULT_SCHEDULE_ID
+    counts.set(sid, (counts.get(sid) ?? 0) + 1)
+  }
+  return scheduleStore.schedules.map(s => ({
+    ...s,
+    count: counts.get(s.id) ?? 0,
+    isDefault: s.id === DEFAULT_SCHEDULE_ID,
+  }))
+})
+
+const schedulePopupVisible = ref(false)
+const schedulePopupMode = ref<'create' | 'rename'>('create')
+const scheduleEditingId = ref<string | null>(null)
+const scheduleNameInput = ref('')
+
+/** 当前正在编辑的课表行（重命名模式下用） */
+const editingRow = computed(() =>
+  schedulePopupMode.value === 'rename' && scheduleEditingId.value
+    ? scheduleRows.value.find(r => r.id === scheduleEditingId.value)
+    : undefined,
+)
+
+/** 重命名模式下是否可删除：仅默认课表不可删除（有课程的课表删除时课程移入回收站） */
+const canDeleteEditing = computed(() => {
+  const row = editingRow.value
+  return !!row && !row.isDefault
+})
+
+/** 是否显示可用的「设为当前」：重命名模式且目标不是当前课表 */
+const canSwitchEditing = computed(() =>
+  schedulePopupMode.value === 'rename'
+  && scheduleEditingId.value != null
+  && scheduleEditingId.value !== scheduleStore.activeId,
+)
+
+function openCreateSchedule() {
+  lightTap()
+  schedulePopupMode.value = 'create'
+  scheduleEditingId.value = null
+  scheduleNameInput.value = ''
+  schedulePopupVisible.value = true
+}
+
+function openManageSchedule(row: { id: string, name: string }) {
+  lightTap()
+  schedulePopupMode.value = 'rename'
+  scheduleEditingId.value = row.id
+  scheduleNameInput.value = row.name
+  schedulePopupVisible.value = true
+}
+
+function confirmSchedulePopup() {
+  const name = scheduleNameInput.value.trim()
+  if (!name) {
+    toast.error('请输入课表名称')
+    return
+  }
+  if (schedulePopupMode.value === 'create') {
+    scheduleStore.createSchedule(name)
+    toast.success(`已创建「${name}」，可在首页点击标题切换`)
+  }
+  else if (scheduleEditingId.value) {
+    const ok = scheduleStore.renameSchedule(scheduleEditingId.value, name)
+    if (!ok) {
+      toast.error('重命名失败，请重试')
+      return
+    }
+    toast.success('已重命名')
+  }
+  schedulePopupVisible.value = false
+}
+
+function switchToEditing() {
+  const id = scheduleEditingId.value
+  if (!id)
+    return
+  if (!scheduleStore.switchTo(id)) {
+    toast.error('切换失败，请重试')
+    return
+  }
+  schedulePopupVisible.value = false
+  const name = scheduleStore.schedules.find(s => s.id === id)?.name ?? ''
+  toast.show(`已切换到「${name}」`)
+}
+
+function removeEditingSchedule() {
+  const id = scheduleEditingId.value
+  const row = editingRow.value
+  if (!id || !row)
+    return
+  if (row.isDefault) {
+    toast.error('默认课表不能删除')
+    return
+  }
+  const msg = row.count > 0
+    ? `「${row.name}」下还有 ${row.count} 节课，删除课表后这些课程将移入回收站（可恢复）。确定删除？`
+    : `确定删除空课表「${row.name}」？`
+  dialog
+    .confirm({
+      title: '删除课表',
+      msg,
+      confirmButtonProps: { type: 'danger' },
+    })
+    .then(() => {
+      // 先迁移课程再删课表（store 仍拒绝删除非空课表，作为最后防线）
+      const moved = courseStore.removeCoursesOfSchedule(id)
+      const ok = scheduleStore.removeSchedule(id, false)
+      if (!ok) {
+        toast.error('删除失败，请重试')
+        return
+      }
+      schedulePopupVisible.value = false
+      toast.show(moved > 0 ? `已删除，${moved} 节课已移入回收站` : '已删除')
+    })
+    .catch(() => {})
+}
+
 // ---------- 导出 ----------
 function exportData() {
   lightTap()
-  const data = buildExportFile(courseStore.courses, templateStore.templates, appStore.settings)
+  const data = buildExportFile(courseStore.courses, templateStore.templates, appStore.settings, scheduleStore.schedules)
   const date = today()
   const filename = `课程表备份_${date}.json`
   // #ifdef H5
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
+  downloadJsonH5(data, filename)
   toast.success('已导出')
   // #endif
   // #ifdef APP
   uni.showLoading({ title: '导出中...', mask: true })
-  // Android 6.0+ 需要动态请求存储权限
+  // Android 6.0–10 需要动态申请存储权限；Android 11(API 30) 起分区存储强制生效，
+  // WRITE_EXTERNAL_STORAGE 已无法用于写公共目录，申请只会弹一个无意义的授权框，
+  // 因此直接跳过，导出自动回退到应用沙盒路径
   const requestStoragePermission = () => {
     return new Promise<boolean>((resolve) => {
       if (plus.os.name !== 'Android') {
+        resolve(true)
+        return
+      }
+      const sdkInt = Number(plus.os.version || 0)
+      if (sdkInt >= 30) {
         resolve(true)
         return
       }
@@ -96,18 +227,17 @@ function exportData() {
   })
   // #endif
   // #ifdef MP
-  uni.showLoading({ title: '导出中...', mask: true })
+  // 注意：不要用 showLoading 兜在中间——导出写入是同步的、瞬间完成，
+  // 且 shareFileMessage 必须与本次点击处于同一同步调用栈才能调起转发面板
   exportFileMp(data, filename)
     .then(() => {
-      uni.hideLoading()
       dialog.alert({
-        title: '导出成功',
-        msg: '备份文件已生成。若刚才取消了分享，可再次点击「导出全部数据」重新发送；转发到「文件传输助手」或任意聊天即可长期保存。',
+        title: '导出完成',
+        msg: '转发到「文件传输助手」或任意聊天即可长期保存；若刚才取消了分享，再次点击「导出全部数据」即可重新发送。',
       })
     })
-    .catch(() => {
-      uni.hideLoading()
-      toast.error('导出失败')
+    .catch((err: Error) => {
+      toast.error(err?.message || '导出失败')
     })
   // #endif
 }
@@ -185,19 +315,22 @@ function handleImportParsed(raw: unknown) {
     })
     return
   }
-  const incoming = result.data.courses
-  const existingIds = new Set(courseStore.courses.map(c => c.id))
-  const addCount = incoming.filter(c => !existingIds.has(c.id)).length
-  const overwriteCount = incoming.length - addCount
-  const conflictCount = incoming.filter(c => courseStore.detectConflicts(c, c.id).length > 0).length
-  importPreview.value = { visible: true, raw, data: result.data, addCount, overwriteCount, conflictCount }
+  const stats = summarizeImport(result.data.courses, courseStore.courses)
+  importPreview.value = { visible: true, raw, data: result.data, ...stats }
 }
 
 function doImport(mode: 'merge' | 'append') {
   const preview = importPreview.value
   if (!preview)
     return
-  const { courses, templates, settings } = preview.data
+  const { courses, templates, settings, schedules } = preview.data
+  // 先合并课表定义，保证课程归属的课表 id 有效
+  if (schedules?.length) {
+    if (mode === 'merge')
+      scheduleStore.schedules = mergeById(scheduleStore.schedules, schedules)
+    else
+      scheduleStore.schedules.push(...schedules.filter(s => !scheduleStore.schedules.some(t => t.id === s.id)))
+  }
   if (mode === 'merge') {
     courseStore.replaceById(courses)
     templateStore.templates = mergeById(templateStore.templates, templates)
@@ -208,6 +341,7 @@ function doImport(mode: 'merge' | 'append') {
     const existingTplIds = new Set(templateStore.templates.map(t => t.id))
     templateStore.templates.push(...templates.filter(t => !existingTplIds.has(t.id)))
   }
+  scheduleStore.ensureValid()
   if (settings && mode === 'merge')
     appStore.updateSettings(settings)
   importPreview.value = null
@@ -231,13 +365,16 @@ function clearAll() {
   dialog
     .confirm({
       title: '清空全部数据',
-      msg: '将删除所有课程、模板与回收站数据，且不可恢复。确定继续？',
-      confirmButtonColor: '#ef4444',
+      msg: '将删除所有课程、课表、模板与回收站数据，且不可恢复。确定继续？',
+      confirmButtonProps: { type: 'danger' },
     })
     .then(() => {
       courseStore.clearAll()
       templateStore.templates = []
       recycleStore.clear()
+      scheduleStore.reset()
+      // 清掉待发送的定时通知，避免清空后仍弹出已删课程的提醒
+      clearAllNotificationTimers()
       toast.show('已清空')
     })
     .catch(() => {})
@@ -255,6 +392,12 @@ function goRecycle() {
 }
 
 // ---------- 课前通知 ----------
+/** 仅 APP 端支持系统级课前提醒（小程序/ H5 无后台定时通知能力） */
+const supportsNotification = ref(true)
+// #ifndef APP-PLUS
+supportsNotification.value = false
+// #endif
+
 const notificationEnabled = computed({
   get: () => appStore.settings.notificationEnabled ?? false,
   set: (val: boolean) => {
@@ -263,8 +406,7 @@ const notificationEnabled = computed({
       // #ifdef APP-PLUS
       requestNotificationPermission().then((granted) => {
         if (granted) {
-          const courseStore = useCourseStore()
-          scheduleCourseNotifications(courseStore.courses, appStore.settings)
+          scheduleCourseNotifications(courseStore.activeCourses, appStore.settings)
           toast.success('通知已开启')
         }
         else {
@@ -272,11 +414,13 @@ const notificationEnabled = computed({
         }
       })
       // #endif
-      // #ifndef APP-PLUS
-      toast.success('通知已开启')
-      // #endif
     }
     else {
+      // #ifdef APP-PLUS
+      // 关闭提醒：停止前台保活并清除待发送的定时器，避免残留常驻通知
+      stopForegroundService()
+      clearAllNotificationTimers()
+      // #endif
       toast.show('通知已关闭')
     }
   },
@@ -289,8 +433,7 @@ const advanceMinutes = computed({
     // 重新调度通知
     // #ifdef APP-PLUS
     if (appStore.settings.notificationEnabled) {
-      const courseStore = useCourseStore()
-      rescheduleNotifications(courseStore.courses, appStore.settings)
+      rescheduleNotifications(courseStore.activeCourses, appStore.settings)
     }
     // #endif
   },
@@ -352,6 +495,47 @@ const templateHint = '可用变量：{student}=学生姓名，{course}=课程名
       :class="isTablet ? 'grid grid-cols-2 items-start gap-x-4' : ''"
       :style="{ paddingBottom: `${bottomBarHeight + safeAreaBottom}px` }"
     >
+      <!-- 课表管理 -->
+      <view class="mt-4">
+        <view class="section-label">
+          课表管理（多老师多课表）
+        </view>
+        <wd-cell-group border rounded>
+          <wd-cell
+            v-for="row in scheduleRows"
+            :key="row.id"
+            :title="row.name"
+            :custom-title-class="row.id === scheduleStore.activeId ? 'font-medium text-indigo-600' : ''"
+            is-link
+            @click="openManageSchedule(row)"
+          >
+            <!-- 当前课表用对勾标识；其余行留同宽空位，保证名称对齐 -->
+            <template #prefix>
+              <view class="mr-2.5 w-5 flex shrink-0 items-center">
+                <view
+                  v-if="row.id === scheduleStore.activeId"
+                  class="i-carbon-checkmark-filled text-lg text-indigo-500"
+                />
+              </view>
+            </template>
+            <template #default>
+              <text class="text-2xs text-gray-400">{{ row.count }} 节课</text>
+            </template>
+          </wd-cell>
+        </wd-cell-group>
+        <view
+          class="mt-2.5 h-12 flex items-center justify-center gap-1 border border-gray-300 rounded-lg border-dashed bg-white"
+          hover-class="bg-gray-50"
+          @click="openCreateSchedule"
+        >
+          <view class="i-carbon-add text-base text-indigo-500" />
+          <text class="text-sm text-gray-600">新建课表</text>
+        </view>
+        <view class="mt-2 px-2 text-2xs text-gray-400 leading-relaxed">
+          每张课表对应一位老师，课程相互独立。点击首页顶部课表名可快速切换。
+        </view>
+      </view>
+
       <!-- 数据 -->
       <view class="mt-4">
         <view class="section-label">
@@ -424,55 +608,62 @@ const templateHint = '可用变量：{student}=学生姓名，{course}=课程名
         </wd-cell-group>
       </view>
 
-      <!-- 课前通知 -->
+      <!-- 课前通知（系统级定时提醒仅 APP 端支持） -->
       <view class="mt-4">
         <view class="section-label">
           课前通知
         </view>
-        <wd-cell-group border rounded>
-          <wd-cell title="开启课前提醒" center custom-style="--wot-switch-size: 16px;">
-            <template #default>
-              <wd-switch v-model="notificationEnabled" />
-            </template>
-            <template #icon>
-              <view class="i-carbon-notification mr-3 text-xl text-indigo-500" />
-            </template>
-          </wd-cell>
-          <wd-cell
-            v-if="notificationEnabled"
-            title="提前提醒时间"
-            is-link
-            center
-            @click="showAdvancePicker = true"
-          >
-            <template #icon>
-              <view class="i-carbon-time mr-3 text-xl text-sky-500" />
-            </template>
-            <template #default>
-              <text class="text-sm text-gray-600">{{ advanceLabel }}</text>
-            </template>
-          </wd-cell>
-          <wd-cell
-            v-if="notificationEnabled"
-            title="通知内容模板"
-            center
-          >
-            <template #icon>
-              <view class="i-carbon-text-align-left mr-3 text-xl text-violet-500" />
-            </template>
-            <template #default>
-              <wd-input
-                v-model="notificationTemplate"
-                :placeholder="templatePlaceholder"
-                compact
-                clearable
-                custom-style="flex: 1; min-width: 80px; text-align: right;"
-              />
-            </template>
-          </wd-cell>
-        </wd-cell-group>
-        <view v-if="notificationEnabled" class="mt-2 px-2 text-2xs text-gray-400 leading-relaxed">
-          {{ templateHint }}
+        <template v-if="supportsNotification">
+          <wd-cell-group border rounded>
+            <wd-cell title="开启课前提醒" center custom-style="--wot-switch-size: 16px;">
+              <template #default>
+                <wd-switch v-model="notificationEnabled" />
+              </template>
+              <template #icon>
+                <view class="i-carbon-notification mr-3 text-xl text-indigo-500" />
+              </template>
+            </wd-cell>
+            <wd-cell
+              v-if="notificationEnabled"
+              title="提前提醒时间"
+              is-link
+              center
+              @click="showAdvancePicker = true"
+            >
+              <template #icon>
+                <view class="i-carbon-time mr-3 text-xl text-sky-500" />
+              </template>
+              <template #default>
+                <text class="text-sm text-gray-600">{{ advanceLabel }}</text>
+              </template>
+            </wd-cell>
+            <wd-cell
+              v-if="notificationEnabled"
+              title="通知内容模板"
+              center
+            >
+              <template #icon>
+                <view class="i-carbon-text-align-left mr-3 text-xl text-violet-500" />
+              </template>
+              <template #default>
+                <wd-input
+                  v-model="notificationTemplate"
+                  :placeholder="templatePlaceholder"
+                  compact
+                  clearable
+                  custom-style="flex: 1; min-width: 80px; text-align: right;"
+                />
+              </template>
+            </wd-cell>
+          </wd-cell-group>
+          <view v-if="notificationEnabled" class="mt-2 px-2 text-2xs text-gray-400 leading-relaxed">
+            {{ templateHint }}
+            <br>
+            提醒依赖应用进程存活，请勿在系统设置中限制本应用的后台运行。
+          </view>
+        </template>
+        <view v-else class="card px-3.5 py-3 text-xs text-gray-500 leading-relaxed">
+          小程序端受系统限制暂不支持课前提醒（无法在后台定时唤起系统通知），需要该功能请使用安卓 App 端。
         </view>
       </view>
 
@@ -513,6 +704,71 @@ const templateHint = '可用变量：{student}=学生姓名，{course}=课程名
       title="提前提醒时间"
       @confirm="onAdvanceConfirm"
     />
+
+    <!-- 课表新建/管理弹窗 -->
+    <wd-popup
+      :model-value="schedulePopupVisible"
+      position="center"
+      @close="schedulePopupVisible = false"
+    >
+      <view class="max-w-360px w-85vw rounded-2xl bg-white p-5">
+        <view class="text-base text-gray-900 font-medium">
+          {{ schedulePopupMode === 'create' ? '新建课表' : '课表设置' }}
+        </view>
+        <view class="mt-3">
+          <wd-input
+            v-model="scheduleNameInput"
+            placeholder="输入课表名称，如：张老师"
+            clearable
+            :maxlength="20"
+          />
+        </view>
+        <view class="mt-4 flex flex-col gap-2">
+          <!-- 固定按钮结构：不用 v-if 增删按钮（小程序端条件渲染的同类型组件实例可能被复用导致事件失效），只切文案/禁用态 -->
+          <wd-button
+            key="schedule-pop-save"
+            block
+            type="primary"
+            @click="confirmSchedulePopup"
+          >
+            {{ schedulePopupMode === 'create' ? '创建' : '保存名称' }}
+          </wd-button>
+          <wd-button
+            key="schedule-pop-switch"
+            block
+            type="primary"
+            variant="plain"
+            :disabled="!canSwitchEditing"
+            @click="switchToEditing"
+          >
+            设为当前课表
+          </wd-button>
+          <wd-button
+            key="schedule-pop-remove"
+            block
+            variant="plain"
+            :disabled="!canDeleteEditing"
+            @click="removeEditingSchedule"
+          >
+            删除课表
+          </wd-button>
+          <wd-button
+            key="schedule-pop-close"
+            block
+            variant="plain"
+            @click="schedulePopupVisible = false"
+          >
+            关闭
+          </wd-button>
+        </view>
+        <view
+          v-if="schedulePopupMode === 'rename' && editingRow?.isDefault"
+          class="mt-2 text-2xs text-gray-400"
+        >
+          默认课表不可删除（课程可正常增删）
+        </view>
+      </view>
+    </wd-popup>
 
     <!-- 导入预览弹窗 -->
     <wd-popup

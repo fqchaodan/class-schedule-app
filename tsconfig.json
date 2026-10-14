@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "composite": true,
+    "target": "esnext",
     "lib": ["esnext", "dom"],
     "baseUrl": ".",
     "module": "esnext",
@@ -15,7 +16,6 @@
       "@uni-helper/uni-types",
       "@uni-helper/vite-plugin-uni-pages",
       "miniprogram-api-typings",
-      "z-paging/types",
       "vitest/globals",
       // 注意：async-component.d.ts / async-import.d.ts 由 @uni-ku/bundle-optimizer 在非 H5 端生成，
       // H5 端不会生成，放在这里会导致 `pnpm type-check` 报 TS2688，故移除。

@@ -1,15 +1,8 @@
-import { minutesToTime, timeToMinutes, today } from '@/utils/time'
+import { timeToMinutes, today } from '@/utils/time'
 import { computed, ref } from 'vue'
 
-/** 时间选择器选项：00:00 - 24:00，1 分钟一档 */
+/** 时间选择器选项：双列（小时 + 分钟），1 分钟一档 */
 export function useTimeOptions() {
-  const timeOptions = computed(() => {
-    const list: string[] = []
-    for (let m = 0; m <= 1440; m += 1)
-      list.push(minutesToTime(m))
-    return list
-  })
-
   /** 小时列表（00-24） */
   const hourOptions = computed(() => {
     const list: string[] = []
@@ -45,26 +38,12 @@ export function useTimeOptions() {
     return `${h}:${m}`
   }
 
-  /** 将 HH:mm 转为在 timeOptions 中的索引 */
-  function timeToIndex(time: string): number {
-    const idx = timeOptions.value.indexOf(time)
-    return idx >= 0 ? idx : 0
-  }
-
-  /** 将索引转回 HH:mm */
-  function indexToTime(idx: number): string {
-    return timeOptions.value[idx] ?? '09:00'
-  }
-
   return {
-    timeOptions,
     hourOptions,
     minuteOptions,
     timeColumns,
     timeToArr,
     arrToTime,
-    timeToIndex,
-    indexToTime,
   }
 }
 
@@ -105,18 +84,6 @@ export function useCourseForm() {
     return ''
   }
 
-  function reset() {
-    editId.value = null
-    isCopyMode.value = false
-    studentName.value = ''
-    name.value = ''
-    meetingUrl.value = ''
-    startDate.value = today()
-    startTime.value = '09:00'
-    endTime.value = '10:00'
-    feeRaw.value = ''
-  }
-
   return {
     editId,
     isCopyMode,
@@ -130,6 +97,5 @@ export function useCourseForm() {
     isEdit,
     buildDraft,
     validate,
-    reset,
   }
 }

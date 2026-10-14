@@ -3,7 +3,6 @@ import type { Course } from '@/types/course'
 import { avatarGradient } from '@/utils/avatar'
 import { lightTap } from '@/utils/feedback'
 import { durationHours } from '@/utils/time'
-import { useDialog, useToast } from '@wot-ui/ui'
 
 const props = withDefaults(defineProps<{
   course: Course
@@ -21,11 +20,10 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   click: [course: Course]
+  /** 长按请求删除：由页面级弹窗接管确认流程（避免每个卡片实例化一套 dialog/toast） */
   delete: [course: Course]
 }>()
 
-const dialog = useDialog()
-const toast = useToast()
 const courseStore = useCourseStore()
 
 /** 长按定时器 */
@@ -46,7 +44,7 @@ function onTouchStart() {
   clearLongPressTimer()
   longPressTimer = setTimeout(() => {
     lightTap()
-    confirmDelete()
+    emit('delete', props.course)
   }, LONG_PRESS_DELAY)
 }
 
@@ -56,23 +54,6 @@ function onTouchEnd() {
 
 function onTouchMove() {
   clearLongPressTimer()
-}
-
-/** 删除确认对话框 */
-function confirmDelete() {
-  const name = props.course.studentName || props.course.name || '此课程'
-  dialog
-    .confirm({
-      title: '删除课程',
-      msg: `确定删除「${name}」？删除后可在回收站恢复。`,
-      confirmButtonColor: '#ef4444',
-    })
-    .then(() => {
-      courseStore.removeCourse(props.course.id)
-      toast.show('已移入回收站')
-      emit('delete', props.course)
-    })
-    .catch(() => {})
 }
 
 const noteCount = computed(() => props.course.notes.length)
@@ -99,8 +80,10 @@ function togglePaid() {
   courseStore.togglePaid(props.course.id)
 }
 
-/** 包裹 view 的 click.stop：APP 端 wd-tag 组件级 @click.stop 不可靠，
- *  改用原生 view @click.stop 阻断冒泡，再委托到对应函数 */
+/**
+ * 包裹 view 的 click.stop：APP 端 wd-tag 组件级 @click.stop 不可靠，
+ *  改用原生 view @click.stop 阻断冒泡，再委托到对应函数
+ */
 function onPaidClick() {
   togglePaid()
 }
@@ -111,7 +94,7 @@ function onStatusClick() {
 
 <template>
   <view
-    class="mb-2 w-full overflow-hidden rounded-2xl bg-white shadow-card active:bg-gray-50 transition-colors border-l-4"
+    class="mb-2 w-full overflow-hidden border-l-4 rounded-2xl bg-white transition-colors shadow-card active:bg-gray-50"
     :class="course.completed ? 'border-l-emerald-400' : 'border-l-amber-400'"
     @click="emit('click', course)"
     @touchstart="onTouchStart"
@@ -178,7 +161,4 @@ function onStatusClick() {
       </view>
     </view>
   </view>
-
-  <wd-dialog />
-  <wd-toast />
 </template>

@@ -207,7 +207,13 @@ export default defineConfig(({ command, mode }) => {
         : undefined,
     },
     esbuild: {
-      drop: VITE_DELETE_CONSOLE === 'true' ? ['console', 'debugger'] : [],
+      // 生产构建去掉 console.log/debug/info（保留 console.warn/error 便于线上排查，
+      // 例如安卓通知发送失败、持久化写入失败等关键路径的日志）
+      drop: VITE_DELETE_CONSOLE === 'true' ? ['debugger'] : [],
+      pure:
+        VITE_DELETE_CONSOLE === 'true'
+          ? ['console.log', 'console.debug', 'console.info']
+          : [],
     },
     build: {
       sourcemap: false,

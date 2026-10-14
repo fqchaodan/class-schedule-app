@@ -5,7 +5,8 @@ import { durationHours, formatDateTime } from '@/utils/time'
 import { safeAreaBottom } from '@/utils/systemInfo'
 import { lightTap } from '@/utils/feedback'
 import { isTablet } from '@/store/device'
-import { useDialog, useToast } from '@wot-ui/ui'
+import { useDialog } from '@wot-ui/ui/components/wd-dialog'
+import { useToast } from '@wot-ui/ui/components/wd-toast'
 
 definePage({
   style: {
@@ -15,6 +16,7 @@ definePage({
 
 const recycleStore = useRecycleStore()
 const courseStore = useCourseStore()
+const scheduleStore = useScheduleStore()
 const dialog = useDialog()
 const toast = useToast()
 
@@ -33,8 +35,12 @@ function avatarClsOf(course: Course) {
 
 function restore(item: { course: Course }) {
   lightTap()
-  const conflicts = courseStore.detectConflicts(item.course, item.course.id)
+  // 冲突检测范围 = 课程原本所属的课表（可能与当前激活课表不同）
+  const conflicts = courseStore.detectConflictsInSchedule(item.course.scheduleId, item.course, item.course.id)
   const doRestore = () => {
+    // 课表可能已被删除（删除时其课程已在回收站）：归属失效则回退到默认课表
+    if (item.course.scheduleId && !scheduleStore.exists(item.course.scheduleId))
+      item.course.scheduleId = undefined
     courseStore.insertMany([item.course])
     recycleStore.purge(item.course.id)
     toast.success('已恢复')
@@ -61,7 +67,7 @@ function purge(item: { course: Course }) {
     .confirm({
       title: '彻底删除',
       msg: `彻底删除「${titleOf(item.course)}」？此操作不可恢复。`,
-      confirmButtonColor: '#ef4444',
+      confirmButtonProps: { type: 'danger' },
     })
     .then(() => {
       recycleStore.purge(item.course.id)
@@ -78,7 +84,7 @@ function clearAll() {
     .confirm({
       title: '清空回收站',
       msg: `彻底删除回收站全部 ${recycleStore.items.length} 条课程？此操作不可恢复。`,
-      confirmButtonColor: '#ef4444',
+      confirmButtonProps: { type: 'danger' },
     })
     .then(() => {
       recycleStore.clear()

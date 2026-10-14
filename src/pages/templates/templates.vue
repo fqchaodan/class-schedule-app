@@ -7,7 +7,8 @@ import { dateToTimestamp, timestampToDate, timeToMinutes, weekStart } from '@/ut
 import { draftsToCourses } from '@/store/template'
 import { useTimeOptions } from '@/hooks/useCourseForm'
 import { lightTap } from '@/utils/feedback'
-import { useDialog, useToast } from '@wot-ui/ui'
+import { useDialog } from '@wot-ui/ui/components/wd-dialog'
+import { useToast } from '@wot-ui/ui/components/wd-toast'
 
 definePage({
   style: {
@@ -17,8 +18,14 @@ definePage({
 
 const templateStore = useTemplateStore()
 const courseStore = useCourseStore()
+const scheduleStore = useScheduleStore()
 const dialog = useDialog()
 const toast = useToast()
+
+/** 周期模板生成的课程统一归入当前课表 */
+function generateCourses(drafts: CourseDraft[]) {
+  return draftsToCourses(drafts).map(c => ({ ...c, scheduleId: scheduleStore.activeId }))
+}
 
 // ---------- 分类 ----------
 const tab = ref<'course' | 'cycle'>('course')
@@ -173,7 +180,7 @@ function saveForm() {
   if (editId.value)
     courseStore.removeByTemplateId(editId.value)
   const drafts = templateStore.buildCourses(tpl)
-  courseStore.insertMany(draftsToCourses(drafts))
+  courseStore.insertMany(generateCourses(drafts))
   showForm.value = false
   toast.success(`已保存并生成 ${drafts.length} 节课程`)
 }
@@ -199,7 +206,7 @@ const previewDrafts = computed<CourseDraft[]>(() =>
 const previewWithConflict = computed(() =>
   previewDrafts.value.map(d => ({
     draft: d,
-    conflict: courseStore.courses.some(c =>
+    conflict: courseStore.activeCourses.some(c =>
       c.templateId !== previewTpl.value?.id
       && isCourseConflict(c, d as unknown as Course),
     ),
@@ -223,7 +230,7 @@ function confirmGenerate() {
   const drafts = previewDrafts.value
   // 先删除该模板之前已生成的课程，避免重复
   courseStore.removeByTemplateId(previewTpl.value.id)
-  courseStore.insertMany(draftsToCourses(drafts))
+  courseStore.insertMany(generateCourses(drafts))
   toast.success(`已生成 ${drafts.length} 节课程`)
   previewTpl.value = null
 }
@@ -266,7 +273,7 @@ function tplAvatarCls(tpl: CourseTemplate) {
           icon="save"
           custom-class="px-3"
         />
-        <view v-for="tpl in courseTemplates" :key="tpl.id" class="card mx-3 mt-3 p-3.5">
+        <view v-for="tpl in courseTemplates" :key="tpl.id" class="mx-3 mt-3 card p-3.5">
           <view class="flex items-center gap-3">
             <view
               class="h-10 w-10 flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-sm text-white font-medium"
@@ -306,7 +313,7 @@ function tplAvatarCls(tpl: CourseTemplate) {
           icon="clock-circle"
           custom-class="px-3"
         />
-        <view v-for="tpl in cycleTemplates" :key="tpl.id" class="card mx-3 mt-3 p-3.5">
+        <view v-for="tpl in cycleTemplates" :key="tpl.id" class="mx-3 mt-3 card p-3.5">
           <view class="flex items-center gap-3">
             <view
               class="h-10 w-10 flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-sm text-white font-medium"

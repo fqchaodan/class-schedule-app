@@ -1,5 +1,61 @@
 # 更新日志
 
+## 0.4.0 (2026-10-14)
+
+### 新增功能
+
+#### 多课表管理（每张课表对应一位老师）
+- 数据模型新增 `Schedule` 实体与 `Course.scheduleId`（`src/types/course.ts`）：课程归属某张课表，**缺省即默认课表，历史数据零迁移**
+- 新增 `src/store/schedule.ts`（持久化）：创建 / 重命名 / 切换 / 删除课表；`ensureValid` 保证默认课表条目存在、激活 id 失效自动回退
+- 设置页新增「课表管理」区块：列表展示课程数、行首对勾标记当前课表；「+ 新建课表」为虚线按钮；非默认课表可删除（其下课程移入回收站，可恢复），默认课表不可删
+- 首页标题显示当前课表名，点击弹出快速切换面板（超过 6 张时引导去设置页）
+- 数据隔离：课表页 / 看板 / 统计 / 冲突检测 / 周期模板生成 / 课前通知均只针对当前课表；新增课程自动归入当前课表
+- 导入导出携带课表定义：导出文件新增 `schedules` 字段；导入自动合并课表并保留课程归属；**旧版备份文件完全兼容**（自动归默认课表）
+- 回收站恢复时校验归属：原课表已删除的课程回退默认课表，不产生「孤儿课程」
+
+#### 平台能力补全
+- 小程序端设置页「课前提醒」不再显示空开关，改为平台能力降级说明；App 启动接入 `wx.getUpdateManager` 小程序更新提示
+- 安卓通知生命周期修正：前台服务仅在开启提醒时启动/保活，关闭开关即时停止并清理常驻通知，启动时清理历史残留
+
+### Bug 修复
+
+#### 小程序端导出「打开分享面板失败」
+- **根因**：`wx.shareFileMessage` 官方限制「仅在点击行为时调用」，必须与用户点击手势处于同一同步调用栈；原实现在 `writeFile` 异步回调中调用，真机报 `can only be invoked by user TAP gesture`
+- **修复**：`exportFileMp` 改为 `fs.writeFileSync` 同步写入后直接调起分享（点击 → 写文件 → 分享面板全程同步）；失败提示区分手势限制 / 开发者工具 / 其他原因，并输出原始 errMsg 便于排查
+
+#### 课表管理交互修复
+- 修复设置页「默认课表重命名失败」「从其他课表切回默认失败」：弹窗按钮不再按模式动态增删（小程序端条件渲染的同类型组件实例复用导致事件失效），改为固定结构 + 禁用态；store 操作失败不再静默报成功
+- 修复「清空全部数据」遗漏课表：`clearAll` 补充课表重置（新增 `scheduleStore.reset()`），并清理已排定的通知定时器
+
+#### 其他修复
+- wot-ui `confirmButtonColor` 全库失效（2.3.2 无此字段，红色确认按钮实际未生效）→ 6 处改用 `confirmButtonProps: { type: 'danger' }`
+- `isValidDate('2026-02-30')` 误判合法：`time.ts` 补 dayjs `customParseFormat` 插件（新增测试抓出的真实 bug）
+- 导入校验拒绝跨天课程，与「仅单日课程」数据模型对齐
+- 安卓 11+ 分区存储下导出到公共目录必失败 → 存储权限仅 Android ≤10 申请，其余自动回退应用沙盒
+
+### 优化改进
+
+#### 性能
+- 课表页 / 看板页改用 `computed Map<day, Course[]>` 单次遍历建索引，`courseCoversDay` 改纯字符串比较（原实现每次渲染约 28 / 14 次全量过滤 + 逐课 dayjs 计算）
+- `CourseCard` 不再自带 `useDialog` / `useToast`（首页 N 张卡片会产生 2N 个弹窗实例）→ 页面级单例 + `@delete` 事件上浮
+- 持久化防抖：新增 `src/store/persist-storage.ts`（300ms 防抖 + App `onHide` flush 兜底）；tabbar 激活索引未变化不再写 storage
+- 首页补「时间冲突」标记（冲突课程卡片显示红色标签）
+
+#### 工程与依赖
+- 死代码清理约 3000 行：移除 unibest 模板残留（`src/http`、`src/api`、`src/service`、`router/permission`、`store/token`、`store/user`、`hooks/useScroll|useRequest|useUpload`、`utils/uploadFile|debounce|toLoginPage` 等），产物中 http/api/service 目录消失
+- 依赖精简：移除 alova 三件套 / abortcontroller-polyfill / vue-i18n / z-paging；`@changesets/cli` 移至 devDependencies
+- `.gitignore` 修复：移除 `src/types` 整目录忽略规则（原规则会连同核心 `course.ts` 一起忽略，新克隆无法构建），类型文件纳入版本管理
+- `tsconfig.json` 补 `target: esnext`；生产构建保留 console.warn/error（不再全量删除）
+- 测试体系建立：新增 time / conflict / file-io / course store / template store / schedule store 共 6 个测试文件；`type-check` 42 错清零、`lint` 32 错清零
+
+#### 界面
+- 课表管理改版：「当前」文字标识 → 行首对勾图标（固定占位保证名称对齐）；「新建课表」由列表行改为虚线加号按钮
+- 安卓权限精简：manifest 权限 22 → 9（移除未使用权限，存储权限补 `maxSdkVersion=32`）
+
+### 构建与资源
+- 8 个页面全在主包，产物体积远低于 2MB 主包上限
+- 版本号 0.3.0 → 0.4.0（package.json / manifest.config.ts versionCode 400）
+
 ## 0.3.0 (2026-10-10)
 
 ### 新增功能

@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import type { Course } from '@/types/course'
-import { addWeeks, longDate, shortDate, today, weekDays, weekStart } from '@/utils/time'
+import { isTimeOverlap } from '@/utils/conflict'
+import { addWeeks, courseCoversDay, longDate, shortDate, today, weekDays, weekStart } from '@/utils/time'
 import { safeAreaBottom, statusBarHeight } from '@/utils/systemInfo'
 import { bottomBarHeight, isTablet, windowWidth } from '@/store/device'
 import { lightTap } from '@/utils/feedback'
+import { useDialog } from '@wot-ui/ui/components/wd-dialog'
+import { useToast } from '@wot-ui/ui/components/wd-toast'
 
 definePage({
   type: 'home',
@@ -14,6 +17,34 @@ definePage({
 })
 
 const courseStore = useCourseStore()
+const scheduleStore = useScheduleStore()
+const dialog = useDialog()
+const toast = useToast()
+
+/** 点击标题切换课表（小程序 actionSheet 最多 6 项） */
+function switchSchedule() {
+  lightTap()
+  // 兜底修复异常状态（默认课表缺失 / 激活 id 失效），保证列表与切换可用
+  scheduleStore.ensureValid()
+  const list = scheduleStore.schedules
+  if (list.length <= 1)
+    return
+  if (list.length > 6) {
+    toast.show('课表较多，请到「设置 - 课表管理」切换')
+    return
+  }
+  const names = list.map(s => (s.id === scheduleStore.activeId ? `✓ ${s.name}` : s.name))
+  uni.showActionSheet({
+    itemList: names,
+    success: ({ tapIndex }) => {
+      const target = list[tapIndex]
+      if (target && target.id !== scheduleStore.activeId) {
+        scheduleStore.switchTo(target.id)
+        toast.show(`已切换到「${target.name}」`)
+      }
+    },
+  })
+}
 
 const curWeekStart = ref(weekStart())
 
@@ -24,9 +55,38 @@ const weekLabel = computed(() => {
   return `${shortDate(s)} - ${shortDate(e)}`
 })
 
+// 单次遍历生成「日期 -> 课程」索引，避免模板中反复 filter 全量课程
+// （模板里 coursesOf(day) 每天会被取用 3 次，直接全量扫描会放大 20 倍以上）
+const coursesByDay = computed(() => {
+  const map = new Map<string, Course[]>(days.value.map(d => [d, [] as Course[]]))
+  for (const c of courseStore.sortedByTime) {
+    for (const day of days.value) {
+      if (courseCoversDay(c.startDate, c.endDate, day))
+        map.get(day)!.push(c)
+    }
+  }
+  return map
+})
+
 function coursesOf(day: string): Course[] {
-  return courseStore.coursesOnDay(day)
+  return coursesByDay.value.get(day) ?? []
 }
+
+// 同一天内时间重叠的课程 id 集合（用于卡片上的「时间冲突」标记）
+const conflictIds = computed(() => {
+  const ids = new Set<string>()
+  for (const list of coursesByDay.value.values()) {
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        if (isTimeOverlap(list[i].startTime, list[i].endTime, list[j].startTime, list[j].endTime)) {
+          ids.add(list[i].id)
+          ids.add(list[j].id)
+        }
+      }
+    }
+  }
+  return ids
+})
 
 function isToday(day: string) {
   return day === today()
@@ -54,7 +114,28 @@ function openEdit() {
   uni.navigateTo({ url: '/pages/course/edit' })
 }
 
-const weekTotal = computed(() => days.value.reduce((n, d) => n + coursesOf(d).length, 0))
+/** 长按卡片删除：确认弹窗由页面级单例接管（CourseCard 不再自带 dialog/toast 实例） */
+function confirmDelete(course: Course) {
+  const name = course.studentName || course.name || '此课程'
+  dialog
+    .confirm({
+      title: '删除课程',
+      msg: `确定删除「${name}」？删除后可在回收站恢复。`,
+      confirmButtonProps: { type: 'danger' },
+    })
+    .then(() => {
+      courseStore.removeCourse(course.id)
+      toast.show('已移入回收站')
+    })
+    .catch(() => {})
+}
+
+const weekTotal = computed(() => {
+  let n = 0
+  for (const list of coursesByDay.value.values())
+    n += list.length
+  return n
+})
 
 // 平板端周视图按窗口宽度分列：竖屏 2 列、宽屏 3 列；手机保持单列
 const weekColumns = computed(() => {
@@ -69,13 +150,17 @@ const weekColumns = computed(() => {
   <view class="h-screen flex flex-col overflow-hidden bg-gray-50">
     <!-- 顶部工具条（固定，不随内容滚动）：浅染色渐变，柔和不刺眼 -->
     <view class="shrink-0 from-indigo-50 to-white bg-gradient-to-b" :style="{ paddingTop: `${statusBarHeight}px` }">
-      <!-- 标题行（与 NavBar 统一 44px 高度） -->
+      <!-- 标题行（与 NavBar 统一 44px 高度）；多课表时点击可切换 -->
       <view class="h-44px flex items-center px-4">
-        <view class="flex items-center gap-2">
-          <view class="i-carbon-calendar text-lg text-indigo-500" />
-          <text class="text-lg text-gray-900 font-bold">
-            我的课表
+        <view class="max-w-full flex items-center gap-2" @click="switchSchedule">
+          <view class="i-carbon-calendar shrink-0 text-lg text-indigo-500" />
+          <text class="truncate text-lg text-gray-900 font-bold">
+            {{ scheduleStore.activeSchedule?.name || '我的课表' }}
           </text>
+          <view
+            v-if="scheduleStore.schedules.length > 1"
+            class="i-carbon-chevron-down shrink-0 text-sm text-gray-400"
+          />
         </view>
       </view>
       <!-- 日期导航行 -->
@@ -140,7 +225,9 @@ const weekColumns = computed(() => {
             v-for="c in coursesOf(day)"
             :key="c.id"
             :course="c"
+            :conflict="conflictIds.has(c.id)"
             @click="openDetail"
+            @delete="confirmDelete"
           />
         </view>
       </view>
@@ -148,5 +235,8 @@ const weekColumns = computed(() => {
 
     <!-- 新增按钮（可拖拽） -->
     <DragFab @click="openEdit" />
+
+    <wd-dialog />
+    <wd-toast />
   </view>
 </template>

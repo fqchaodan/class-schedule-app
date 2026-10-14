@@ -9,8 +9,7 @@
  * 使用条件编译：仅在 APP-PLUS 端生效
  */
 
-import type { Course } from '@/types/course'
-import type { AppSettings } from '@/types/course'
+import type { AppSettings, Course } from '@/types/course'
 import { dayjs } from '@/utils/time'
 
 /** 通知通道 ID */
@@ -21,6 +20,30 @@ const FOREGROUND_NOTIFICATION_ID = -1
 const COURSE_NOTIFICATION_BASE = 1000
 
 /**
+ * Native.js 桥接对象在 @dcloudio/types 中没有可用的类型定义
+ * （`importClass` 返回值被声明为无方法、无常量的 PlusAndroidClassObject），
+ * 统一经下面两个网关取得 any 句柄，避免调用处满屏类型断言
+ */
+function androidClass(name: string): any {
+  return plus.android.importClass(name)
+}
+
+function androidMainActivity(): any {
+  return plus.android.runtimeMainActivity()
+}
+
+/** 定时器管理：course.id -> 定时器，用于关闭提醒时统一清理 */
+const timerMap = new Map<ReturnType<typeof setTimeout>, string>()
+
+/** 清除所有通知定时器 */
+export function clearAllNotificationTimers() {
+  for (const [timer] of timerMap) {
+    clearTimeout(timer)
+  }
+  timerMap.clear()
+}
+
+/**
  * 创建通知渠道（Android 8.0+ 需要）
  */
 export function createNotificationChannel() {
@@ -29,14 +52,14 @@ export function createNotificationChannel() {
     return
 
   try {
-    const NotificationManager = plus.android.importClass('android.app.NotificationManager')
-    const NotificationChannel = plus.android.importClass('android.app.NotificationChannel')
+    const NotificationManager = androidClass('android.app.NotificationManager')
+    const NotificationChannel = androidClass('android.app.NotificationChannel')
 
     if (!NotificationManager || !NotificationChannel)
       return
 
-    const Context = plus.android.importClass('android.content.Context')
-    const mainActivity = plus.android.runtimeMainActivity()
+    const Context = androidClass('android.content.Context')
+    const mainActivity = androidMainActivity()
     const notificationManager = mainActivity.getSystemService(Context.NOTIFICATION_SERVICE)
 
     // 检查渠道是否已存在
@@ -80,8 +103,8 @@ export function requestNotificationPermission(): Promise<boolean> {
         return
       }
 
-      const mainActivity = plus.android.runtimeMainActivity()
-      const PackageManager = plus.android.importClass('android.content.pm.PackageManager')
+      const mainActivity = androidMainActivity()
+      const PackageManager = androidClass('android.content.pm.PackageManager')
       if (!PackageManager) {
         resolve(false)
         return
@@ -119,10 +142,10 @@ export function requestNotificationPermission(): Promise<boolean> {
 function getAppIconResId(): number {
   // #ifdef APP-PLUS
   try {
-    const mainActivity = plus.android.runtimeMainActivity()
+    const mainActivity = androidMainActivity()
     const packageName = mainActivity.getPackageName()
     const resources = mainActivity.getResources()
-    const R_id = plus.android.importClass(`${packageName}.R$id`)
+    const R_id = androidClass(`${packageName}.R$id`)
     // 尝试获取 app_icon，失败则用默认值
     if (R_id) {
       const fields = R_id.getFields()
@@ -135,7 +158,7 @@ function getAppIconResId(): number {
       }
     }
     // 降级：通过资源名查找
-    const R_drawable = plus.android.importClass(`${packageName}.R$drawable`)
+    const R_drawable = androidClass(`${packageName}.R$drawable`)
     if (R_drawable) {
       const drawFields = R_drawable.getFields()
       for (let i = 0; i < drawFields.length; i++) {
@@ -151,7 +174,7 @@ function getAppIconResId(): number {
     // 忽略，返回默认值
   }
   // #endif
-  return 0x7f020001
+  return 0x7F020001
 }
 
 /**
@@ -164,9 +187,9 @@ function getAppIconResId(): number {
 function buildLaunchPendingIntent(notificationId: number): any {
   // #ifdef APP-PLUS
   try {
-    const mainActivity = plus.android.runtimeMainActivity()
-    const Intent = plus.android.importClass('android.content.Intent')
-    const PendingIntent = plus.android.importClass('android.app.PendingIntent')
+    const mainActivity = androidMainActivity()
+    const Intent = androidClass('android.content.Intent')
+    const PendingIntent = androidClass('android.app.PendingIntent')
 
     // 获取应用包名
     const packageName = mainActivity.getPackageName()
@@ -205,8 +228,8 @@ function sendNotification(title: string, content: string, notificationId: number
     return
 
   try {
-    const mainActivity = plus.android.runtimeMainActivity()
-    const Context = plus.android.importClass('android.content.Context')
+    const mainActivity = androidMainActivity()
+    const Context = androidClass('android.content.Context')
     const notificationManager = mainActivity.getSystemService(Context.NOTIFICATION_SERVICE)
 
     // 构建点击 Intent
@@ -216,7 +239,7 @@ function sendNotification(title: string, content: string, notificationId: number
     const iconResId = getAppIconResId()
 
     // 尝试使用 NotificationCompat（AndroidX）
-    const NotificationCompat = plus.android.importClass('androidx.core.app.NotificationCompat')
+    const NotificationCompat = androidClass('androidx.core.app.NotificationCompat')
     if (NotificationCompat) {
       const builder = new NotificationCompat.Builder(mainActivity, CHANNEL_ID)
         .setContentTitle(title)
@@ -234,7 +257,7 @@ function sendNotification(title: string, content: string, notificationId: number
     }
 
     // 降级：旧版 Notification API（Android 7.x 及以下）
-    const Notification = plus.android.importClass('android.app.Notification')
+    const Notification = androidClass('android.app.Notification')
     if (Notification) {
       const notification = new Notification()
       notification.defaults = -1 // 全部默认（声音+振动+灯光）
@@ -278,8 +301,7 @@ function formatNotificationContent(course: Course, template: string): string {
  * @param courses 全部课程
  * @param settings 应用设置
  */
-export function scheduleCourseNotifications(courses: Course[], settings: AppSettings) {
-  // #ifdef APP-PLUS
+export function scheduleCourseNotifications(courses: Course[], settings: AppSettings) { // #ifdef APP-PLUS
   if (!settings.notificationEnabled) {
     return
   }
@@ -347,15 +369,15 @@ export function startForegroundService() {
   try {
     createNotificationChannel()
 
-    const mainActivity = plus.android.runtimeMainActivity()
-    const Context = plus.android.importClass('android.content.Context')
+    const mainActivity = androidMainActivity()
+    const Context = androidClass('android.content.Context')
     const notificationManager = mainActivity.getSystemService(Context.NOTIFICATION_SERVICE)
 
     const iconResId = getAppIconResId()
     const pendingIntent = buildLaunchPendingIntent(FOREGROUND_NOTIFICATION_ID)
 
     // 尝试使用 NotificationCompat
-    const NotificationCompat = plus.android.importClass('androidx.core.app.NotificationCompat')
+    const NotificationCompat = androidClass('androidx.core.app.NotificationCompat')
 
     let foregroundNotification: any
 
@@ -399,8 +421,8 @@ export function stopForegroundService() {
     return
 
   try {
-    const mainActivity = plus.android.runtimeMainActivity()
-    const Context = plus.android.importClass('android.content.Context')
+    const mainActivity = androidMainActivity()
+    const Context = androidClass('android.content.Context')
     const notificationManager = mainActivity.getSystemService(Context.NOTIFICATION_SERVICE)
     notificationManager.cancel(FOREGROUND_NOTIFICATION_ID)
 
@@ -424,17 +446,4 @@ export function rescheduleNotifications(courses: Course[], settings: AppSettings
   // 重新调度
   scheduleCourseNotifications(courses, settings)
   // #endif
-}
-
-// ====== 定时器管理 ======
-const timerMap = new Map<ReturnType<typeof setTimeout>, string>()
-
-/**
- * 清除所有通知定时器
- */
-export function clearAllNotificationTimers() {
-  for (const [timer] of timerMap) {
-    clearTimeout(timer)
-  }
-  timerMap.clear()
 }

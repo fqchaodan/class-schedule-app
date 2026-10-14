@@ -24,12 +24,17 @@ dist
 .stylelintcache
 .eslintcache
 
+# Vite 配置加载临时文件（构建/开发时自动生成，非源码）
+vite.config.ts.timestamp-*
+
 docs/.vitepress/dist
 docs/.vitepress/cache
 
-src/types
-# 单独把这个文件排除掉，用以解决部分电脑生成的 auto-import.d.ts 的API不完整导致类型提示报错问题
-!src/types/auto-import.d.ts
+# 2026-10-14: 本项目已关闭各插件的 dts 自动生成（vite.config.ts 中 dts: false），
+# src/types/ 下的类型文件（course.ts / auto-import.d.ts / uni-pages.d.ts / components.d.ts）
+# 均为手工维护，必须纳入版本管理。
+# 原模板规则 `src/types` 会把 course.ts（核心数据模型）一起忽略，导致新克隆无法构建与通过 type-check。
+# src/types
 src/manifest.json
 src/pages.json
 

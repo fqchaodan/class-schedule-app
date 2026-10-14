@@ -1,5 +1,5 @@
 import type { Course } from '@/types/course'
-import { courseCoversDay, dateRangeDays, timeToMinutes } from './time'
+import { dateRangeDays, timeToMinutes } from './time'
 
 /**
  * 两节课在某一天上是否时间重叠
@@ -46,22 +46,3 @@ export function findConflicts(
     c => c.id !== excludeId && isCourseConflict(c, candidate as Course),
   )
 }
-
-/** 冲突提示文案 */
-export function conflictText(conflicts: Course[]): string {
-  if (conflicts.length === 0)
-    return ''
-  const label = (c: Course) => c.studentName || c.name || '未命名课程'
-  const list = conflicts
-    .slice(0, 5)
-    .map(c => `「${label(c)}」${c.startDate} ${c.startTime}-${c.endTime}`)
-  const more = conflicts.length > 5 ? `\n...等共 ${conflicts.length} 条冲突` : ''
-  return `与以下课程时间冲突：\n${list.join('\n')}${more}`
-}
-
-/** 供展示：课程在指定日期区间内覆盖的天数 */
-export function coveredDays(course: Course): string[] {
-  return dateRangeDays(course.startDate, course.endDate)
-}
-
-export { courseCoversDay }

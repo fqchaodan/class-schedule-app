@@ -25,8 +25,8 @@ export default defineManifestConfig({
   'name': VITE_APP_TITLE,
   'appid': VITE_UNI_APPID,
   'description': '',
-  'versionName': '0.3.0',
-  'versionCode': '300',
+  'versionName': '0.4.0',
+  'versionCode': '400',
   'transformPx': false,
   'locale': VITE_FALLBACK_LOCALE, // 'zh-Hans'
   'h5': {
@@ -57,31 +57,26 @@ export default defineManifestConfig({
         minSdkVersion: 21,
         targetSdkVersion: 33,
         abiFilters: ['armeabi-v7a', 'arm64-v8a'],
-        // 兼容 Android 10+ 分区存储（Scoped Storage），允许使用旧版外部存储访问模式
+        // 兼容 Android 10 分区存储（Android 11+ 系统会忽略该标记，导出自动回退应用沙盒）
         requestLegacyExternalStorage: true,
+        // 权限清单原则：只声明功能真正需要的权限，减少安装授权页的“权限吓人”与商店合规风险。
+        // 已移除与本应用无关的：CAMERA / READ_PHONE_STATE / GET_ACCOUNTS / READ_LOGS /
+        // WRITE_SETTINGS / MOUNT_UNMOUNT_FILESYSTEMS / FLASHLIGHT / 相机 uses-feature /
+        // SCHEDULE_EXACT_ALARM / USE_EXACT_ALARM / RECEIVE_BOOT_COMPLETED。
+        // 说明：SCHEDULE_EXACT_ALARM 与 RECEIVE_BOOT_COMPLETED 待接入 AlarmManager
+        // （原生闹钟式定时，替代当前 setTimeout 调度）时再加回。
         permissions: [
-          '<uses-permission android:name="android.permission.CHANGE_NETWORK_STATE"/>',
-          '<uses-permission android:name="android.permission.MOUNT_UNMOUNT_FILESYSTEMS"/>',
           '<uses-permission android:name="android.permission.VIBRATE"/>',
-          '<uses-permission android:name="android.permission.READ_LOGS"/>',
-          '<uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>',
-          '<uses-feature android:name="android.hardware.camera.autofocus"/>',
           '<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>',
-          '<uses-permission android:name="android.permission.CAMERA"/>',
-          '<uses-permission android:name="android.permission.GET_ACCOUNTS"/>',
-          '<uses-permission android:name="android.permission.READ_PHONE_STATE"/>',
-          '<uses-permission android:name="android.permission.CHANGE_WIFI_STATE"/>',
+          '<uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>',
+          '<uses-permission android:name="android.permission.CHANGE_NETWORK_STATE"/>',
           '<uses-permission android:name="android.permission.WAKE_LOCK"/>',
-          '<uses-permission android:name="android.permission.FLASHLIGHT"/>',
-          '<uses-feature android:name="android.hardware.camera"/>',
-          '<uses-permission android:name="android.permission.WRITE_SETTINGS"/>',
-          '<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>',
-          '<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>',
+          // 仅 Android 10 及以下需要（导出到公共 Download 目录）；
+          // Android 11+ 分区存储下该权限失效，用 maxSdkVersion 明确限定范围
+          '<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>',
+          '<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>',
           '<uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>',
-          '<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>',
           '<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>',
-          '<uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>',
-          '<uses-permission android:name="android.permission.USE_EXACT_ALARM"/>',
         ],
       },
       /* ios打包配置 */

@@ -1,4 +1,4 @@
-import type { AppSettings, Course, CourseTemplate, ExportFile } from '@/types/course'
+import type { AppSettings, Course, CourseTemplate, ExportFile, Schedule } from '@/types/course'
 import { DEFAULT_SETTINGS } from '@/types/course'
 import { findConflicts } from './conflict'
 import { isValidDate, isValidTime } from './time'
@@ -6,14 +6,15 @@ import { isValidDate, isValidTime } from './time'
 export const EXPORT_APP_ID = 'teacher-schedule'
 export const SCHEMA_VERSION = 1
 
-/** 构造导出对象 */
-export function buildExportFile(courses: Course[], templates: CourseTemplate[], settings: AppSettings): ExportFile {
+/** 构造导出对象（schedules 为多课表信息，旧版本调用方可不传） */
+export function buildExportFile(courses: Course[], templates: CourseTemplate[], settings: AppSettings, schedules?: Schedule[]): ExportFile {
   return {
     app: EXPORT_APP_ID,
     schemaVersion: SCHEMA_VERSION,
     exportedAt: Date.now(),
     courses,
     templates,
+    schedules,
     settings,
   }
 }
@@ -50,6 +51,8 @@ export function validateImportFile(raw: unknown):
       return { ok: false, error: `${label}：结束日期格式错误（${String(c.endDate)}）` }
     if (c.endDate < c.startDate)
       return { ok: false, error: `${label}：结束日期早于开始日期` }
+    if (c.endDate !== c.startDate)
+      return { ok: false, error: `${label}：暂不支持跨天/多日课程（开始日期与结束日期需一致）` }
     if (typeof c.startTime !== 'string' || !isValidTime(c.startTime))
       return { ok: false, error: `${label}：开始时间格式错误（${String(c.startTime)}）` }
     if (typeof c.endTime !== 'string' || !isValidTime(c.endTime))
@@ -72,6 +75,7 @@ export function validateImportFile(raw: unknown):
       completed: c.completed === true,
       notes: notes as Course['notes'],
       templateId: typeof c.templateId === 'string' ? c.templateId : undefined,
+      scheduleId: typeof c.scheduleId === 'string' && c.scheduleId ? c.scheduleId : undefined,
       createdAt: typeof c.createdAt === 'number' ? c.createdAt : 0,
       updatedAt: typeof c.updatedAt === 'number' ? c.updatedAt : 0,
     })
@@ -116,6 +120,21 @@ export function validateImportFile(raw: unknown):
     ? { ...DEFAULT_SETTINGS, ...(obj.settings as AppSettings) }
     : { ...DEFAULT_SETTINGS }
 
+  // 多课表信息（旧版本备份无此字段）：宽松校验，id/name 合法即保留
+  const schedules: Schedule[] = Array.isArray(obj.schedules)
+    ? (obj.schedules as unknown[]).flatMap((item) => {
+        const s = item as Record<string, unknown>
+        if (typeof s?.id !== 'string' || !s.id || typeof s.name !== 'string' || !s.name.trim())
+          return []
+        return [{
+          id: s.id,
+          name: s.name.trim(),
+          createdAt: typeof s.createdAt === 'number' ? s.createdAt : 0,
+          updatedAt: typeof s.updatedAt === 'number' ? s.updatedAt : 0,
+        }]
+      })
+    : []
+
   return {
     ok: true,
     data: {
@@ -124,6 +143,7 @@ export function validateImportFile(raw: unknown):
       exportedAt: typeof obj.exportedAt === 'number' ? obj.exportedAt : 0,
       courses,
       templates,
+      schedules,
       settings,
     },
   }
@@ -189,14 +209,15 @@ export function exportFileApp(data: ExportFile, filename: string): Promise<strin
                       const downloadDir = '/storage/emulated/0/Download'
                       const downloadFullPath = `${downloadDir}/${filename}`
 
-                      const JavaFile = plus.android.importClass('java.io.File')
+                      // Native.js 桥接对象无类型定义，取 any 句柄使用
+                      const JavaFile: any = plus.android.importClass('java.io.File')
                       // 确保目录存在
                       const dirFile = new JavaFile(downloadDir)
                       if (!dirFile.exists())
                         dirFile.mkdirs()
 
                       // 直接用 FileWriter 写入 JSON 字符串，无需文件流复制
-                      const FileWriter = plus.android.importClass('java.io.FileWriter')
+                      const FileWriter: any = plus.android.importClass('java.io.FileWriter')
                       const fw = new FileWriter(downloadFullPath)
                       fw.write(jsonStr)
                       fw.close()
@@ -233,11 +254,14 @@ export function exportFileApp(data: ExportFile, filename: string): Promise<strin
 }
 
 /**
- * 小程序端导出：写入小程序文件系统，然后通过「转发到聊天」让用户保存
+ * 小程序端导出：同步写入小程序文件系统，然后立即调起「转发到聊天」让用户保存
  *
- * 小程序无法直接下载文件到本地相册/文件夹，只能：
- *   1. 用 FileSystemManager 写文件到 USER_DATA_PATH（应用私有目录）
- *   2. 调用 wx.shareFileMessage 弹出系统分享面板，用户转发到聊天/文件传输助手后即可长期保存
+ * 小程序无法直接下载文件到本地相册/文件夹，标准做法是转发到聊天（文件传输助手）长期保存。
+ *
+ * 关键约束：wx.shareFileMessage 官方限制「仅在点击行为时调用」——必须与用户的点击手势
+ * 处于同一个同步调用栈。若放进 writeFile 等异步回调里触发，真机会报
+ * "shareFileMessage:fail can only be invoked by user TAP gesture."。
+ * 因此这里用 writeFileSync 同步写入（备份 JSON 体积小，耗时可忽略），紧接着直接调用分享。
  */
 export function exportFileMp(data: ExportFile, filename: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -252,27 +276,38 @@ export function exportFileMp(data: ExportFile, filename: string): Promise<string
       return
     }
     const filePath = `${userDataPath}/${filename}`
-    fs.writeFile({
+    // 同步写入：保持与用户点击手势同一调用栈，避免 shareFileMessage 报 TAP gesture 错误
+    try {
+      fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8')
+    }
+    catch (e) {
+      console.error('[exportFileMp] writeFileSync failed:', e)
+      reject(new Error('写入文件失败'))
+      return
+    }
+    uni.shareFileMessage({
       filePath,
-      data: JSON.stringify(data, null, 2),
-      encoding: 'utf8',
-      success: () => {
-        // 写入成功后再走分享（分享面板需在用户交互后调起，此处由 cell 点击触发，满足要求）
-        uni.shareFileMessage({
-          filePath,
-          fileName: filename,
-          success: () => resolve(filePath),
-          // 用户取消分享不算失败，文件仍在本地，下次可重新导出
-          fail: (err) => {
-            const msg = String(err?.errMsg || '')
-            if (msg.includes('cancel'))
-              resolve(filePath)
-            else
-              reject(new Error('打开分享面板失败'))
-          },
-        })
+      fileName: filename,
+      success: () => resolve(filePath),
+      fail: (err) => {
+        const msg = String(err?.errMsg || '')
+        console.warn('[exportFileMp] shareFileMessage fail:', err)
+        // 用户取消分享不算失败，文件仍在本地，下次可重新导出
+        if (msg.includes('cancel')) {
+          resolve(filePath)
+          return
+        }
+        if (msg.includes('TAP gesture')) {
+          reject(new Error('分享面板未能打开，请重新点击导出'))
+          return
+        }
+        // 开发者工具模拟器不支持该接口，给出明确指引，避免被误判为功能异常
+        if (uni.getSystemInfoSync().platform === 'devtools') {
+          reject(new Error('开发者工具不支持转发文件，请用手机预览后再试'))
+          return
+        }
+        reject(new Error('打开分享面板失败'))
       },
-      fail: () => reject(new Error('写入文件失败')),
     })
     // #endif
     // #ifndef MP
@@ -369,15 +404,16 @@ export function pickImportFileApp(): Promise<unknown> {
         const osName = plus.os.name
         if (osName === 'Android') {
           try {
-            const File = plus.android.importClass('java.io.File')
+            // Native.js 桥接对象无类型定义，取 any 句柄使用
+            const File: any = plus.android.importClass('java.io.File')
             const fileObj = new File(filePath)
             if (!fileObj.exists()) {
               reject(new Error('文件不存在'))
               return
             }
             // 用 Scanner 读取整个文件为字符串，简单可靠
-            const FileInputStream = plus.android.importClass('java.io.FileInputStream')
-            const Scanner = plus.android.importClass('java.util.Scanner')
+            const FileInputStream: any = plus.android.importClass('java.io.FileInputStream')
+            const Scanner: any = plus.android.importClass('java.util.Scanner')
             const fis = new FileInputStream(filePath)
             const scanner = new Scanner(fis, 'UTF-8')
             // useDelimiter("\\A") 是常见技巧：匹配文件开头，hasNext 等价于「还有内容」
