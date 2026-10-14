@@ -28,6 +28,7 @@
 - **.gitignore 已修正**：`src/types` 整目录忽略规则已移除（原规则会把核心 `course.ts` 一起忽略，导致新克隆无法构建）；src/types 下的文件需纳入版本管理（`git add src/types`）。
 - AutoImport dirs 已含 'src/store'；新增 store 文件需同步补 `src/types/auto-import.d.ts` 声明。
 - **门禁三条**：`pnpm type-check`（vue-tsc）/ `pnpm lint` / `pnpm test:run`，2026-10-14 起全绿（当时清掉 type-check 42 错 + lint 32 错）。
+- **发版流程（2026-10-14 起）**：版本号**两处同改**——`package.json` `version` + `manifest.config.ts` `versionName`/`versionCode`（versionCode 惯例「minor 进百」：0.2.0=200 / 0.3.0=300 / 0.4.0=400；`pnpm bump-version` 脚本只改 manifest 且 versionCode 仅 +1，以手动改为准）；同步 CHANGELOG.md 新增段 + README「更新日志」摘要段；提交信息格式 `type: 概要 (vX.Y.Z)`（过 commitlint，body 可用中文分节）；发布前跑门禁 + mp 构建。当前最新 v0.4.0（提交 3d321e0，未 push）。
 - **tsconfig 未开 strict**：`if (x.ok) throw` 形式的类型收窄**不生效**（实测），判别联合的收窄要写成 `if (!x.ok) { ...; return }`，或测试里用 `expect(r).toMatchObject({...})`。`target` 已补 `esnext`（否则 Map 迭代报 TS2802）。
 - **wot-ui 注意**：`@wot-ui/ui` 根 index 会带出 useUpload.ts 的第三方类型错误 → 本项目一律**深路径导入** `@wot-ui/ui/components/wd-dialog|wd-toast`。`useDialog/useToast` 是 provide/inject 单例模式：**只能在页面层实例化一次**，列表卡片等重复组件里禁止调用（否则每张卡一套弹窗实例）。**wd-cell 没有 `icon` 插槽**（编译产物只有 prefix/suffix 等具名插槽）——`#icon` 内容会被静默丢弃，前缀内容一律用 `#prefix`（2026-10-14 发现：settings 页各分区原 `#icon` 图标从未渲染过，待用户确认后统一改）。
 - **Android 通知**：前台服务仅 `notificationEnabled` 为真时才启动（App onHide / 设置开关），关闭开关会 `stopForegroundService()` + 清定时器；启动时未开启则清理残留常驻通知。调度仍是 setTimeout（进程被杀即失效），**如需可靠定时需接 AlarmManager 原生方案**（届时再加回 SCHEDULE_EXACT_ALARM / RECEIVE_BOOT_COMPLETED 权限）。
