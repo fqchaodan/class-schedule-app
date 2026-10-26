@@ -493,7 +493,7 @@ const templateHint = '可用变量：{student}=学生姓名，{course}=课程名
     <view
       class="h-0 min-h-0 flex-1 overflow-y-auto px-3"
       :class="isTablet ? 'grid grid-cols-2 items-start gap-x-4' : ''"
-      :style="{ paddingBottom: `${bottomBarHeight + safeAreaBottom}px` }"
+      :style="{ paddingBottom: `${bottomBarHeight + safeAreaBottom + 16}px` }"
     >
       <!-- 课表管理 -->
       <view class="mt-4">
@@ -524,12 +524,12 @@ const templateHint = '可用变量：{student}=学生姓名，{course}=课程名
           </wd-cell>
         </wd-cell-group>
         <view
-          class="mt-2.5 h-12 flex items-center justify-center gap-1 border border-gray-300 rounded-lg border-dashed bg-white"
-          hover-class="bg-gray-50"
+          class="mt-2.5 h-12 flex items-center justify-center gap-1 border border-indigo-200 rounded-xl border-dashed bg-indigo-50/50 active:bg-indigo-100"
+          hover-class="bg-indigo-100"
           @click="openCreateSchedule"
         >
           <view class="i-carbon-add text-base text-indigo-500" />
-          <text class="text-sm text-gray-600">新建课表</text>
+          <text class="text-sm text-indigo-600">新建课表</text>
         </view>
         <view class="mt-2 px-2 text-2xs text-gray-400 leading-relaxed">
           每张课表对应一位老师，课程相互独立。点击首页顶部课表名可快速切换。
@@ -563,6 +563,7 @@ const templateHint = '可用变量：{student}=学生姓名，{course}=课程名
           <wd-cell
             title="清空全部数据"
             is-link
+            custom-title-class="!text-red-500"
             @click="clearAll"
           >
             <template #icon>

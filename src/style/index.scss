@@ -31,6 +31,14 @@ uni-scroll-view,
   -webkit-overflow-scrolling: touch;
 }
 
+/* 隐藏 scroll-view 原生滚动条（移动端本就不显示，避免桌面 H5 观感突兀） */
+uni-scroll-view ::-webkit-scrollbar,
+.uni-scroll-view ::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 /* page 禁止 overscroll 橡皮筋，但不用 overflow:hidden 以免影响弹窗和表单交互 */
 page {
   overscroll-behavior: none;

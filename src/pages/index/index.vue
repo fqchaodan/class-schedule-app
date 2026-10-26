@@ -181,36 +181,32 @@ const weekColumns = computed(() => {
             icon="right"
             @click="nextPeriod"
           />
-          <wd-button
-            variant="text"
-            size="small"
-            @click="goToday"
-          >
+          <view class="ml-1 pill-btn" @click="goToday">
             今天
-          </wd-button>
+          </view>
         </view>
-        <view class="text-2xs text-gray-400">
-          本周共 {{ weekTotal }} 节课
+        <view class="text-xs text-gray-400">
+          共 {{ weekTotal }} 节课
         </view>
       </view>
     </view>
 
-    <!-- 滚动内容区 -->
-    <view class="h-0 min-h-0 flex-1 overflow-y-auto pt-3" :class="isTablet ? 'px-6' : 'px-3'" :style="{ paddingBottom: `${bottomBarHeight + safeAreaBottom}px` }">
+    <!-- 滚动内容区（底部额外留出可拖拽 FAB 的高度） -->
+    <view class="h-0 min-h-0 flex-1 overflow-y-auto pt-3" :class="isTablet ? 'px-6' : 'px-3'" :style="{ paddingBottom: `${bottomBarHeight + safeAreaBottom + 64}px` }">
       <!-- 周视图：按天分组（平板上多列网格，手机单列） -->
       <view
         class="grid gap-4"
         :style="{ gridTemplateColumns: `repeat(${weekColumns}, minmax(0, 1fr))` }"
       >
         <view v-for="day in days" :key="day">
-          <view class="mb-2 flex items-center gap-2">
-            <wd-tag
-              :type="isToday(day) ? 'primary' : 'default'"
-              size="small"
-              round
+          <view class="mb-2 flex items-center gap-1.5">
+            <text
+              class="text-xs font-medium"
+              :class="isToday(day) ? 'text-indigo-600' : 'text-gray-500'"
             >
               {{ longDate(day) }}
-            </wd-tag>
+            </text>
+            <view v-if="isToday(day)" class="status-dot bg-indigo-500" />
             <view v-if="coursesOf(day).length" class="text-2xs text-gray-400">
               {{ coursesOf(day).length }} 节
             </view>

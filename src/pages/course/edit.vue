@@ -390,7 +390,6 @@ onUnmounted(() => {
         type="primary"
         variant="plain"
         block
-        icon="save"
         @click="saveAsTemplate"
       >
         存为模板

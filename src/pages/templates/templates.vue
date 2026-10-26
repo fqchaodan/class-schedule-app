@@ -32,7 +32,16 @@ const tab = ref<'course' | 'cycle'>('course')
 const courseTemplates = computed(() => templateStore.templates.filter(t => t.kind === 'course'))
 const cycleTemplates = computed(() => templateStore.templates.filter(t => t.kind !== 'course'))
 
-const tabOptions = ['course', 'cycle']
+const tabOptions: Array<{ value: 'course' | 'cycle', label: string }> = [
+  { value: 'course', label: '课程模板' },
+  { value: 'cycle', label: '周期排课' },
+]
+
+/** 空态快捷入口：课程模板 → 去新增课程；周期模板 → 打开新建表单 */
+function goAddCourse() {
+  lightTap()
+  uni.navigateTo({ url: '/pages/course/edit' })
+}
 
 function useForNew(tpl: CourseTemplate) {
   lightTap()
@@ -250,29 +259,26 @@ function tplAvatarCls(tpl: CourseTemplate) {
     <!-- 自定义导航栏 -->
     <NavBar title="模板管理" />
     <!-- 分类 tab（固定） -->
-    <view class="shrink-0 border-b border-gray-100 bg-white px-4 pb-2 pt-2 shadow-sm">
-      <wd-segmented
-        v-model:value="tab"
-        :options="tabOptions"
-        theme="card"
-        @change="(item: any) => tab = item.value"
-      >
-        <template #label="{ option }">
-          {{ option.value === 'course' ? '课程模板' : '周期排课' }}
-        </template>
-      </wd-segmented>
+    <view class="shrink-0 border-b border-gray-100 bg-white px-4 py-2.5">
+      <SegControl v-model="tab" :options="tabOptions" />
     </view>
 
     <!-- 滚动内容区 -->
     <view class="h-0 min-h-0 flex-1 overflow-y-auto px-0 py-3">
       <!-- 课程模板 -->
       <view v-if="tab === 'course'">
-        <wd-empty
-          v-if="courseTemplates.length === 0"
-          tip="还没有课程模板。新增课程后点「存为模板」，下次即可一键填充。"
-          icon="save"
-          custom-class="px-3"
-        />
+        <view v-if="courseTemplates.length === 0" class="min-h-[85vh] flex flex-col items-center justify-center gap-2 px-8 pb-10">
+          <view class="i-carbon-save text-7xl text-gray-300" />
+          <view class="text-sm text-gray-600 font-medium">
+            还没有课程模板
+          </view>
+          <view class="text-center text-xs text-gray-400 leading-relaxed">
+            新增课程时点「存为模板」，下次即可一键填充
+          </view>
+          <wd-button size="small" variant="soft" custom-class="mt-2" @click="goAddCourse">
+            去新增课程
+          </wd-button>
+        </view>
         <view v-for="tpl in courseTemplates" :key="tpl.id" class="mx-3 mt-3 card p-3.5">
           <view class="flex items-center gap-3">
             <view
@@ -284,7 +290,7 @@ function tplAvatarCls(tpl: CourseTemplate) {
             <view class="min-w-0 flex-1 overflow-hidden">
               <view class="flex items-center gap-2">
                 <text class="truncate text-sm text-gray-900 font-medium">{{ tpl.studentName || tpl.name }}</text>
-                <text v-if="tpl.fee != null" class="shrink-0 text-xs text-orange-500">¥{{ tpl.fee }}/节</text>
+                <text v-if="tpl.fee != null" class="shrink-0 text-xs txt-fee">¥{{ tpl.fee }}/节</text>
               </view>
               <view class="mt-0.5 flex items-center gap-1 text-xs text-gray-500">
                 <text v-if="tpl.courseName" class="truncate">{{ tpl.courseName }}</text>
@@ -295,7 +301,7 @@ function tplAvatarCls(tpl: CourseTemplate) {
             </view>
           </view>
           <view class="mt-2.5 flex justify-end gap-2">
-            <wd-button size="small" variant="plain" @click="removeCourseTpl(tpl)">
+            <wd-button size="small" type="danger" variant="plain" @click="removeCourseTpl(tpl)">
               删除
             </wd-button>
             <wd-button size="small" type="primary" @click="useForNew(tpl)">
@@ -307,12 +313,18 @@ function tplAvatarCls(tpl: CourseTemplate) {
 
       <!-- 周期模板 -->
       <view v-else>
-        <wd-empty
-          v-if="cycleTemplates.length === 0"
-          tip="暂无周期模板。创建模板后可一键按周生成重复课程"
-          icon="clock-circle"
-          custom-class="px-3"
-        />
+        <view v-if="cycleTemplates.length === 0" class="min-h-[85vh] flex flex-col items-center justify-center gap-2 px-8 pb-10">
+          <view class="i-carbon-calendar text-7xl text-gray-300" />
+          <view class="text-sm text-gray-600 font-medium">
+            还没有周期模板
+          </view>
+          <view class="text-center text-xs text-gray-400 leading-relaxed">
+            创建模板后可一键按周生成重复课程
+          </view>
+          <wd-button size="small" variant="soft" custom-class="mt-2" @click="openCreate">
+            新建周期模板
+          </wd-button>
+        </view>
         <view v-for="tpl in cycleTemplates" :key="tpl.id" class="mx-3 mt-3 card p-3.5">
           <view class="flex items-center gap-3">
             <view
@@ -330,10 +342,10 @@ function tplAvatarCls(tpl: CourseTemplate) {
                 每周{{ weekdayText(tpl.weekdays) }} · {{ tpl.startTime }}-{{ tpl.endTime }} · 连续 {{ tpl.weeks }} 周
               </view>
             </view>
-            <text v-if="tpl.fee != null" class="shrink-0 text-xs text-orange-500">¥{{ tpl.fee }}/节</text>
+            <text v-if="tpl.fee != null" class="shrink-0 text-xs txt-fee">¥{{ tpl.fee }}/节</text>
           </view>
           <view class="mt-2.5 flex justify-end gap-2">
-            <wd-button size="small" variant="plain" @click="removeTpl(tpl)">
+            <wd-button size="small" type="danger" variant="plain" @click="removeTpl(tpl)">
               删除
             </wd-button>
             <wd-button size="small" type="primary" variant="plain" @click="openEdit(tpl)">

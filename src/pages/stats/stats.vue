@@ -116,7 +116,12 @@ function goToday() {
   curYear.value = dayjs().format('YYYY')
 }
 
-const rangeOptions = ['day', 'week', 'month', 'year'] as const
+const rangeOptions: Array<{ value: RangeType, label: string }> = [
+  { value: 'day', label: '日' },
+  { value: 'week', label: '周' },
+  { value: 'month', label: '月' },
+  { value: 'year', label: '年' },
+]
 
 // ---------- 课程日期计算 ----------
 function courseDatesInRange(course: Course): string[] {
@@ -188,10 +193,11 @@ const byStudent = computed(() => {
   return groupStat(groups)
 })
 
-const byCourse = computed(() => {
+/** 按课时费档位分组（key 为费用字符串，null 归入 'none' 档） */
+const byFee = computed(() => {
   const groups: Record<string, Course[]> = {}
   for (const c of coursesInRange.value) {
-    const key = c.name || '未注明课程'
+    const key = c.fee != null ? String(c.fee) : 'none'
     ;(groups[key] ??= []).push(c)
   }
   return groupStat(groups)
@@ -224,8 +230,18 @@ const total = computed(() => {
   }
 })
 
-const groupMode = ref<'student' | 'course'>('student')
-const groupList = computed(() => (groupMode.value === 'student' ? byStudent.value : byCourse.value))
+type GroupMode = 'student' | 'income'
+const groupMode = ref<GroupMode>('student')
+
+/** 明细列表：学生按课时数降序，收入档位按收入降序并格式化标签 */
+const groupList = computed(() => {
+  if (groupMode.value === 'income') {
+    return [...byFee.value]
+      .sort((a, b) => b.income - a.income)
+      .map(i => ({ ...i, label: i.key === 'none' ? '未填课时费' : `¥${i.key}/节` }))
+  }
+  return byStudent.value
+})
 
 /** 明细列表最大值，用于进度条宽度 */
 const maxCount = computed(() => Math.max(1, ...groupList.value.map(i => i.count)))
@@ -238,7 +254,10 @@ const groupColumns = computed(() => {
   return windowWidth.value >= 1000 ? 3 : 2
 })
 
-const groupOptions = ['student', 'course'] as const
+const groupOptions: Array<{ value: GroupMode, label: string }> = [
+  { value: 'student', label: '按学生' },
+  { value: 'income', label: '按收入' },
+]
 </script>
 
 <template>
@@ -254,21 +273,11 @@ const groupOptions = ['student', 'course'] as const
         </view>
       </view>
       <!-- 范围切换行 -->
-      <view class="flex items-center justify-between px-4 pb-3">
-        <wd-segmented
-          v-model:value="rangeType"
-          :options="rangeOptions as unknown as string[]"
-          theme="outline"
-          custom-class="!w-auto !align-middle"
-          @change="(item: any) => rangeType = item.value"
-        >
-          <template #label="{ option }">
-            {{ option.value === 'day' ? '日' : option.value === 'week' ? '周' : option.value === 'month' ? '月' : '年' }}
-          </template>
-        </wd-segmented>
+      <view class="px-4 pb-3">
+        <SegControl v-model="rangeType" :options="rangeOptions" />
       </view>
       <!-- 日期导航行 -->
-      <view class="flex items-center justify-between px-4 pb-3 pt-2">
+      <view class="flex items-center justify-between px-4 pb-3 pt-1">
         <view class="flex items-center gap-1">
           <wd-button
             variant="text"
@@ -285,15 +294,11 @@ const groupOptions = ['student', 'course'] as const
             icon="right"
             @click="nextPeriod"
           />
-          <wd-button
-            variant="text"
-            size="small"
-            @click="goToday"
-          >
+          <view class="ml-1 pill-btn" @click="goToday">
             今天
-          </wd-button>
+          </view>
         </view>
-        <view class="text-2xs text-gray-400">
+        <view class="text-xs text-gray-400">
           共 {{ total.count }} 节
         </view>
       </view>
@@ -331,7 +336,7 @@ const groupOptions = ['student', 'course'] as const
           </view>
           <view class="h-10 w-px bg-gray-100" />
           <view class="flex-1 text-center">
-            <view class="text-3xl text-orange-500 font-bold tabular-nums">
+            <view class="text-3xl text-gray-900 font-bold tabular-nums">
               ¥{{ total.income }}
             </view>
             <view class="mt-0.5 text-2xs text-gray-400">
@@ -340,48 +345,45 @@ const groupOptions = ['student', 'course'] as const
           </view>
         </view>
 
-        <!-- 第二行：完成与收费状态 -->
+        <!-- 第二行：完成与收费状态（金额保持中性色，状态语义只由圆点承担） -->
         <view class="flex border-t border-gray-50 bg-gray-50/50 px-2 py-2.5">
-          <view class="flex-1 text-center">
-            <text class="text-sm text-emerald-600 font-semibold">{{ total.completedCount }}</text>
-            <text class="text-2xs text-gray-400"> / {{ total.count }} 已完成</text>
+          <view class="flex flex-1 flex-col items-center gap-0.5">
+            <text class="text-sm text-gray-800 font-semibold">{{ total.completedCount }} / {{ total.count }}</text>
+            <view class="flex items-center gap-1 text-2xs text-gray-400">
+              <view class="status-dot bg-indigo-500" /> 已完成
+            </view>
           </view>
-          <view class="flex-1 text-center">
-            <text class="text-sm text-amber-600 font-semibold">{{ total.pendingCount }}</text>
-            <text class="text-2xs text-gray-400"> 待上课</text>
+          <view class="flex flex-1 flex-col items-center gap-0.5">
+            <text class="text-sm text-gray-800 font-semibold">{{ total.pendingCount }}</text>
+            <view class="flex items-center gap-1 text-2xs text-gray-400">
+              <view class="status-dot bg-gray-400" /> 待上课
+            </view>
           </view>
-          <view class="flex-1 text-center">
-            <text class="text-sm text-emerald-600 font-semibold">¥{{ total.paidIncome }}</text>
-            <text class="text-2xs text-gray-400"> 已收</text>
+          <view class="flex flex-1 flex-col items-center gap-0.5">
+            <text class="text-sm text-gray-800 font-semibold tabular-nums">¥{{ total.paidIncome }}</text>
+            <view class="flex items-center gap-1 text-2xs text-gray-400">
+              <view class="status-dot bg-emerald-500" /> 已收
+            </view>
           </view>
-          <view class="flex-1 text-center">
-            <text class="text-sm text-amber-500 font-semibold">¥{{ total.unpaidIncome }}</text>
-            <text class="text-2xs text-gray-400"> 未收</text>
+          <view class="flex flex-1 flex-col items-center gap-0.5">
+            <text class="text-sm text-gray-800 font-semibold tabular-nums">¥{{ total.unpaidIncome }}</text>
+            <view class="flex items-center gap-1 text-2xs text-gray-400">
+              <view class="status-dot bg-amber-500" /> 未收
+            </view>
           </view>
         </view>
       </view>
 
       <!-- 分组统计 -->
       <view class="mt-4">
-        <view class="mb-2.5 flex items-center justify-between">
+        <view class="mb-2.5 flex items-center gap-3">
           <view class="flex shrink-0 items-center gap-1.5">
             <view class="i-carbon-list text-sm text-gray-600" />
             <view class="text-sm text-gray-700 font-medium">
               明细
             </view>
           </view>
-          <wd-segmented
-            v-model:value="groupMode"
-            :options="groupOptions as unknown as string[]"
-            theme="outline"
-            size="small"
-            custom-class="!w-auto"
-            @change="(item: any) => groupMode = item.value"
-          >
-            <template #label="{ option }">
-              {{ option.value === 'student' ? '按学生' : '按课程' }}
-            </template>
-          </wd-segmented>
+          <SegControl v-model="groupMode" :options="groupOptions" class="ml-auto w-44" />
         </view>
 
         <wd-empty v-if="groupList.length === 0" tip="该时段暂无课程" />
@@ -404,11 +406,7 @@ const groupOptions = ['student', 'course'] as const
                     class="h-6 w-6 flex shrink-0 items-center justify-center rounded-full text-2xs font-bold"
                     :class="idx === 0
                       ? 'from-amber-400 to-orange-400 bg-gradient-to-br text-white'
-                      : idx === 1
-                        ? 'from-gray-300 to-gray-400 bg-gradient-to-br text-white'
-                        : idx === 2
-                          ? 'from-orange-300 to-amber-400 bg-gradient-to-br text-white'
-                          : 'bg-gray-100 text-gray-500'"
+                      : 'bg-gray-100 text-gray-500'"
                   >
                     {{ idx + 1 }}
                   </view>
@@ -416,7 +414,7 @@ const groupOptions = ['student', 'course'] as const
                 </view>
                 <!-- 右侧：收入 -->
                 <view class="ml-2 shrink-0 text-right">
-                  <view class="text-sm text-orange-500 font-semibold">
+                  <view class="text-sm txt-fee">
                     ¥{{ item.income }}
                   </view>
                   <view class="text-2xs text-gray-400">
@@ -434,22 +432,12 @@ const groupOptions = ['student', 'course'] as const
               </view>
 
               <!-- 底部数据行 -->
-              <view class="mt-2 flex items-center gap-4 text-2xs">
-                <view class="flex items-center gap-1">
-                  <view class="h-1.5 w-1.5 rounded-full bg-indigo-400" />
-                  <text class="text-gray-500">{{ item.count }} 节</text>
-                </view>
-                <view class="flex items-center gap-1">
-                  <view class="h-1.5 w-1.5 rounded-full bg-gray-300" />
-                  <text class="text-gray-500">{{ item.hours }}h</text>
-                </view>
-                <view class="flex items-center gap-1">
-                  <view class="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                  <text class="text-gray-500">已完成 {{ item.completedCount }}</text>
-                </view>
-                <view class="ml-auto flex items-center gap-1">
-                  <view class="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                  <text class="text-gray-500">已收 ¥{{ item.paidIncome }}</text>
+              <view class="mt-2 flex items-center gap-3 text-2xs text-gray-500">
+                <text>{{ item.count }} 节</text>
+                <text>{{ item.hours }}h</text>
+                <text>已完成 {{ item.completedCount }}</text>
+                <view class="ml-auto">
+                  已收 ¥{{ item.paidIncome }}
                 </view>
               </view>
             </view>

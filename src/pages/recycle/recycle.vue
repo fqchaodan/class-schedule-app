@@ -122,9 +122,9 @@ function clearAll() {
               {{ titleOf(item.course).slice(0, 1) }}
             </view>
             <view class="min-w-0 flex-1">
-              <view class="flex items-center gap-2">
-                <text class="truncate text-sm text-gray-800 font-semibold">{{ titleOf(item.course) }}</text>
-                <text v-if="item.course.name && item.course.studentName" class="truncate text-xs text-gray-400">{{ item.course.name }}</text>
+              <view class="flex items-center gap-1.5">
+                <text class="shrink-0 text-sm text-gray-800 font-semibold">{{ titleOf(item.course) }}</text>
+                <text v-if="item.course.name && item.course.studentName" class="truncate text-xs text-gray-400">· {{ item.course.name }}</text>
               </view>
               <view class="mt-0.5 flex flex-wrap items-center gap-x-1 text-xs text-gray-500">
                 <text>{{ item.course.startDate }}</text>
@@ -136,10 +136,10 @@ function clearAll() {
           <view class="mt-2.5 flex items-center justify-between">
             <text class="text-2xs text-gray-400">{{ formatDateTime(item.deletedAt) }} 删除</text>
             <view class="flex gap-2">
-              <wd-button size="small" variant="plain" @click="purge(item)">
+              <wd-button size="small" type="danger" variant="plain" custom-class="!w-22 !px-0" @click="purge(item)">
                 彻底删除
               </wd-button>
-              <wd-button size="small" type="primary" @click="restore(item)">
+              <wd-button size="small" type="primary" custom-class="!w-22 !px-0" @click="restore(item)">
                 恢复
               </wd-button>
             </view>

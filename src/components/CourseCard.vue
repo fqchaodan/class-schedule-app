@@ -95,7 +95,7 @@ function onStatusClick() {
 <template>
   <view
     class="mb-2 w-full overflow-hidden border-l-4 rounded-2xl bg-white transition-colors shadow-card active:bg-gray-50"
-    :class="course.completed ? 'border-l-emerald-400' : 'border-l-amber-400'"
+    :class="course.completed ? 'border-l-indigo-400' : 'border-l-gray-300'"
     @click="emit('click', course)"
     @touchstart="onTouchStart"
     @touchend="onTouchEnd"
@@ -114,9 +114,9 @@ function onStatusClick() {
       <view class="min-w-0 flex-1">
         <view class="flex items-center gap-2">
           <text class="truncate txt-heading">{{ title }}</text>
-          <wd-tag v-if="conflict" type="danger" size="small" variant="plain">
+          <StatusChip v-if="conflict" tone="conflict">
             时间冲突
-          </wd-tag>
+          </StatusChip>
         </view>
         <view class="mt-0.5 flex flex-wrap items-center gap-x-1 txt-sub">
           <text v-if="subtitle" class="truncate">{{ subtitle }}</text>
@@ -124,39 +124,33 @@ function onStatusClick() {
           <text v-if="showDate">{{ course.startDate }} </text>
           <text>{{ course.startTime }}-{{ course.endTime }}（{{ hours }}h）</text>
         </view>
-        <view v-if="course.meetingUrl" class="mt-1 flex items-center gap-1 text-2xs text-indigo-500">
-          <view class="i-carbon-video text-sm" />
-          <text>腾讯会议</text>
+        <view v-if="course.meetingUrl || noteCount > 0" class="mt-1 flex items-center gap-3 text-2xs">
+          <view v-if="course.meetingUrl" class="flex items-center gap-1 text-indigo-500">
+            <view class="i-carbon-video text-sm" />
+            <text>腾讯会议</text>
+          </view>
+          <view v-if="noteCount > 0" class="flex items-center gap-0.5 text-gray-400">
+            <view class="i-carbon-notebook text-sm" /> {{ noteCount }} 条备注
+          </view>
         </view>
       </view>
 
       <!-- 右侧：费用 + 状态 -->
       <view class="flex shrink-0 flex-col items-end gap-1.5">
-        <text v-if="course.fee != null" class="text-sm txt-fee">
+        <text v-if="course.fee != null" class="text-base txt-fee">
           ¥{{ course.fee }}
         </text>
         <view class="flex items-center gap-1.5">
           <view @click.stop="onPaidClick">
-            <wd-tag
-              :type="course.paid ? 'success' : 'default'"
-              size="small"
-              round
-            >
-              {{ course.paid ? '已收费' : '未收费' }}
-            </wd-tag>
+            <StatusChip :tone="course.paid ? 'paid' : 'unpaid'">
+              {{ course.paid ? '已收' : '未收' }}
+            </StatusChip>
           </view>
           <view @click.stop="onStatusClick">
-            <wd-tag
-              :type="course.completed ? 'success' : 'warning'"
-              size="small"
-              round
-            >
+            <StatusChip :tone="course.completed ? 'attended' : 'pending'">
               {{ course.completed ? '已上' : '未上' }}
-            </wd-tag>
+            </StatusChip>
           </view>
-        </view>
-        <view v-if="noteCount > 0" class="flex items-center gap-0.5 text-2xs text-indigo-400">
-          <view class="i-carbon-notebook text-sm" /> {{ noteCount }}
         </view>
       </view>
     </view>

@@ -83,12 +83,14 @@ export default defineConfig({
       'txt-sub': 'text-xs text-gray-500',
       /** 辅助信息（计数、提示） */
       'txt-aux': 'text-2xs text-gray-400',
-      /** 费用强调 */
-      'txt-fee': 'text-orange-500 font-semibold',
+      /** 费用强调（中性深色，与状态色区分） */
+      'txt-fee': 'text-gray-800 font-semibold tabular-nums',
       /** 分组小标题（设置页等） */
-      'section-label': 'mb-1.5 px-1 text-2xs text-gray-400 font-medium tracking-wide',
+      'section-label': 'mb-1.5 block px-1 text-xs text-gray-600 font-semibold tracking-wide',
       /** 状态小圆点 */
       'status-dot': 'h-1.5 w-1.5 rounded-full',
+      /** 小型文字按钮（如"今天"），比 text 变体更有可点感 */
+      'pill-btn': 'flex items-center px-2.5 py-1 text-xs text-indigo-600 bg-indigo-50 rounded-full active:bg-indigo-100',
     },
   ],
   // 动态图标需要在这里配置，或者写在vue页面中注释掉
@@ -123,19 +125,25 @@ export default defineConfig({
     'i-carbon-edit',
     'i-carbon-copy',
     'i-carbon-bookmark',
-    // 看板课程块学生配色（运行时按姓名 hash 动态选择）
-    'border-indigo-500',
+    // 看板课程块学生配色（运行时按姓名 hash 动态选择，色相与头像渐变一一对应）
+    'border-indigo-400',
+    'border-violet-400',
+    'border-sky-400',
+    'border-rose-400',
+    'border-amber-400',
+    'border-emerald-400',
+    'text-indigo-700',
+    'text-violet-700',
+    'text-sky-700',
+    'text-rose-700',
+    'text-amber-700',
+    'text-emerald-700',
     'bg-indigo-50',
-    'border-sky-500',
-    'bg-sky-50',
-    'border-emerald-500',
-    'bg-emerald-50',
-    'border-amber-500',
-    'bg-amber-50',
-    'border-rose-500',
-    'bg-rose-50',
-    'border-violet-500',
     'bg-violet-50',
+    'bg-sky-50',
+    'bg-rose-50',
+    'bg-amber-50',
+    'bg-emerald-50',
     // CourseCard 动态头像渐变（运行时拼接，需固定声明避免被剪裁）
     'from-indigo-500',
     'to-blue-500',
@@ -161,12 +169,12 @@ export default defineConfig({
     ],
     ['pt-safe', { 'padding-top': 'env(safe-area-inset-top)' }],
     ['pb-safe', { 'padding-bottom': 'env(safe-area-inset-bottom)' }],
-    // tabbar 页面滚动区底部留白：tabbar 高度(50px) + 安全区（H5 fallback，APP 端用内联 style）
-    ['pb-tabbar', { 'padding-bottom': 'calc(50px + env(safe-area-inset-bottom))' }],
-    // 非 tabbar 页面底部固定操作栏留白：操作栏高度(52px) + 安全区
-    ['pb-actionbar', { 'padding-bottom': 'calc(52px + env(safe-area-inset-bottom))' }],
+    // tabbar 页面滚动区底部留白：tabbar 高度(50px) + 安全区 + 呼吸留白（H5 fallback，APP 端用内联 style）
+    ['pb-tabbar', { 'padding-bottom': 'calc(66px + env(safe-area-inset-bottom))' }],
+    // 非 tabbar 页面底部固定操作栏留白：操作栏高度(60px) + 安全区 + 呼吸留白
+    ['pb-actionbar', { 'padding-bottom': 'calc(72px + env(safe-area-inset-bottom))' }],
     // 卡片柔和阴影（比 shadow-sm 更细腻的双层阴影）
-    ['shadow-card', { 'box-shadow': '0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 12px -2px rgba(16, 24, 40, 0.06)' }],
+    ['shadow-card', { 'box-shadow': '0 1px 2px rgba(16, 24, 40, 0.05), 0 6px 16px -4px rgba(16, 24, 40, 0.07)' }],
     // 悬浮元素阴影（FAB 等，带主色光晕）
     ['shadow-float', { 'box-shadow': '0 6px 16px -4px rgba(99, 102, 241, 0.4), 0 2px 6px rgba(16, 24, 40, 0.08)' }],
   ],
@@ -176,9 +184,9 @@ export default defineConfig({
       primary: 'var(--wot-primary-6, #6366f1)',
     },
     fontSize: {
-      /** 提供更小号的字体，用法如：text-2xs */
-      '2xs': ['20rpx', '28rpx'],
-      '3xs': ['18rpx', '26rpx'],
+      /** 提供更小号的字体，用法如：text-2xs（最小可用字号 12px，不再出现 10px 级文本） */
+      '2xs': ['24rpx', '34rpx'],
+      '3xs': ['22rpx', '30rpx'],
     },
   },
   // windows 系统会报错：[plugin:unocss:transformers:pre] Cannot overwrite a zero-length range - use append Left or prependRight instead.

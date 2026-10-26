@@ -2,7 +2,7 @@
 import type { Course, NoteType } from '@/types/course'
 import { NOTE_TYPE_LABELS, NOTE_TYPE_OPTIONS } from '@/types/course'
 import { avatarGradient } from '@/utils/avatar'
-import { durationHours, formatDateTime } from '@/utils/time'
+import { durationHours, formatDateTime, longDate } from '@/utils/time'
 import { safeAreaBottom } from '@/utils/systemInfo'
 import { lightTap } from '@/utils/feedback'
 import { isTablet } from '@/store/device'
@@ -171,17 +171,15 @@ onUnmounted(() => {
           <view class="min-w-0 flex-1">
             <view class="flex items-center gap-2">
               <text class="truncate text-lg text-gray-900 font-semibold">{{ course.studentName || '未命名' }}</text>
-              <wd-tag
-                :type="course.completed ? 'success' : 'warning'"
-                size="small"
-                round
+              <StatusChip
+                :tone="course.completed ? 'attended' : 'pending'"
                 @click="toggleStatus"
               >
                 {{ course.completed ? '已上' : '未上' }}
-              </wd-tag>
+              </StatusChip>
             </view>
             <view class="mt-1 text-xs text-gray-400">
-              {{ course.startDate }} · {{ course.startTime }} - {{ course.endTime }}（{{ hours }}h）
+              {{ longDate(course.startDate) }} · {{ course.startTime }}-{{ course.endTime }}（{{ hours }}h）
             </view>
           </view>
         </view>
@@ -193,12 +191,9 @@ onUnmounted(() => {
             <wd-cell title="课时费" :value="course.fee != null ? `¥${course.fee}/节` : '—'" />
             <wd-cell v-if="course.meetingUrl" title="腾讯会议" center>
               <template #default>
-                <view class="flex items-center justify-end gap-2">
-                  <text class="truncate text-indigo-500">{{ course.meetingUrl }}</text>
-                  <wd-button type="primary" size="small" variant="plain" @click="copyMeetingUrl">
-                    复制
-                  </wd-button>
-                </view>
+                <wd-button type="primary" size="small" variant="soft" @click="copyMeetingUrl">
+                  复制链接
+                </wd-button>
               </template>
             </wd-cell>
             <wd-cell v-else title="腾讯会议" value="—" />
@@ -212,13 +207,11 @@ onUnmounted(() => {
           <text class="txt-body font-medium">课程备注（{{ course.notes.length }}）</text>
         </view>
 
-        <wd-empty v-if="course.notes.length === 0" tip="暂无备注" icon-size="60px" />
-
         <view v-for="note in course.notes" :key="note.id" class="mb-2 rounded-xl bg-gray-50 p-3">
           <view class="flex items-center justify-between">
-            <wd-tag type="primary" size="small">
+            <StatusChip tone="info">
               {{ NOTE_TYPE_LABELS[note.type] }}
-            </wd-tag>
+            </StatusChip>
             <view class="flex items-center gap-2 text-2xs text-gray-400">
               <text>{{ formatDateTime(note.createdAt) }}</text>
               <view class="i-carbon-trash-can text-sm text-gray-400 active:text-red-500" @click="removeNote(note.id)" />
@@ -228,10 +221,13 @@ onUnmounted(() => {
             {{ note.content }}
           </view>
         </view>
+        <view v-if="course.notes.length === 0" class="text-2xs text-gray-400">
+          暂无备注，可在下方直接添加
+        </view>
 
         <view class="mt-3 border-t border-gray-50 pt-3">
-          <view class="mb-2">
-            <wd-button size="small" variant="plain" @click="showNoteTypePicker = true">
+          <view class="mb-2 flex items-center gap-2">
+            <wd-button size="small" variant="plain" custom-class="!text-gray-600" @click="showNoteTypePicker = true">
               {{ noteTypeColumns[noteTypeIdx] }}
             </wd-button>
           </view>
@@ -240,6 +236,7 @@ onUnmounted(() => {
             placeholder="输入备注内容：教学内容、学生情况、作业、课后反馈..."
             :maxlength="500"
             show-word-limit
+            custom-class="!bg-gray-50 rounded-lg"
           />
           <view class="mt-2 flex justify-end">
             <wd-button type="primary" size="small" @click="addNote">
@@ -253,7 +250,7 @@ onUnmounted(() => {
     <!-- 底部操作（fixed 固定视口底部） -->
     <view class="fixed bottom-0 left-0 right-0 z-10 h-15 flex items-center gap-2 border-t border-gray-100 bg-white/95 px-3 backdrop-blur-sm" :style="actionbarStyle">
       <wd-button variant="plain" block @click="copyCourse">
-        复制
+        复制课程
       </wd-button>
       <wd-button type="primary" block @click="edit">
         编辑

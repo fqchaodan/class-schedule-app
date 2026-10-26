@@ -2,6 +2,7 @@
 import type { Course } from '@/types/course'
 import { computed, ref } from 'vue'
 import { WEEKDAY_LABELS } from '@/types/course'
+import { studentBlockColor } from '@/utils/avatar'
 import { addWeeks, courseCoversDay, shortDate, timeToMinutes, today, weekDays, weekStart } from '@/utils/time'
 import { safeAreaBottom, statusBarHeight } from '@/utils/systemInfo'
 import { lightTap } from '@/utils/feedback'
@@ -168,22 +169,9 @@ function courseHeight(c: Course): number {
 }
 
 // ---------- 学生配色 ----------
-const STUDENT_COLORS = [
-  { bar: 'border-indigo-500', bg: 'bg-indigo-50' },
-  { bar: 'border-sky-500', bg: 'bg-sky-50' },
-  { bar: 'border-emerald-500', bg: 'bg-emerald-50' },
-  { bar: 'border-amber-500', bg: 'bg-amber-50' },
-  { bar: 'border-rose-500', bg: 'bg-rose-50' },
-  { bar: 'border-violet-500', bg: 'bg-violet-50' },
-]
-function colorOf(name: string) {
-  let h = 0
-  for (let i = 0; i < name.length; i++)
-    h = (h * 31 + name.charCodeAt(i)) >>> 0
-  return STUDENT_COLORS[h % STUDENT_COLORS.length]
-}
+// 与头像渐变同源（utils/avatar 同一 hash），同一学生在卡片、看板、详情页色相一致
 function cColor(c: Course) {
-  return colorOf(c.studentName || c.name || '未命名')
+  return studentBlockColor(c.studentName || c.name || '未命名')
 }
 
 const weekTotal = computed(() => {
@@ -191,6 +179,18 @@ const weekTotal = computed(() => {
   for (const list of coursesByDay.value.values())
     n += list.length
   return n
+})
+
+/** 初始定位：本周包含今天时横向滚动到今日列（其余周从周一开始） */
+const kanbanScrollLeft = ref(0)
+onMounted(() => {
+  // 注意：本页自定义了同名 nextTick 工具（不带回调参数），此处直接用延时等首帧布局完成
+  setTimeout(() => {
+    const idx = days.value.indexOf(today())
+    if (idx >= 0 && !isLarge.value) {
+      kanbanScrollLeft.value = Math.max(0, TIME_AXIS_WIDTH.value + colWidth.value * idx - 40)
+    }
+  }, 150)
 })
 
 // 横屏看板或平板（侧边导航接管）时底部不需要 padding
@@ -275,9 +275,9 @@ function openDetail(course: Course) {
             {{ weekLabel }}
           </view>
           <wd-button variant="text" size="small" icon="right" @click="nextWeek" />
-          <wd-button variant="text" size="small" @click="goToday">
+          <view class="ml-1 pill-btn" @click="goToday">
             今天
-          </wd-button>
+          </view>
         </view>
         <view class="flex items-center gap-1.5">
           <wd-button
@@ -287,12 +287,16 @@ function openDetail(course: Course) {
             icon="rotate-right"
             @click="rotateScreen"
           />
-          <view class="flex items-center overflow-hidden border border-gray-200 rounded-full">
-            <wd-button variant="text" size="small" icon="zoom-out" @click="zoomOut" />
-            <view class="min-w-10 text-center text-xs text-gray-700">
+          <view class="flex items-center rounded-full bg-gray-100">
+            <view class="h-7 w-7 flex items-center justify-center text-base text-gray-600 active:opacity-60" @click="zoomOut">
+              −
+            </view>
+            <view class="min-w-11 text-center text-xs text-gray-600 font-medium tabular-nums">
               {{ zoomPercent }}
             </view>
-            <wd-button variant="text" size="small" icon="zoom-in" @click="zoomIn" />
+            <view class="h-7 w-7 flex items-center justify-center text-base text-gray-600 active:opacity-60" @click="zoomIn">
+              ＋
+            </view>
           </view>
         </view>
       </view>
@@ -300,7 +304,7 @@ function openDetail(course: Course) {
 
     <!-- 看板区：双向滚动（横屏时占满全屏） -->
     <view class="h-0 min-h-0 flex flex-1 flex-col overflow-hidden" :style="{ paddingBottom: `${bottomPadding + safeAreaBottom}px` }">
-      <scroll-view scroll-x scroll-y class="h-full overflow-hidden">
+      <scroll-view scroll-x scroll-y :scroll-left="kanbanScrollLeft" class="h-full overflow-hidden">
         <view class="relative overflow-hidden" :style="{ width: isLarge ? '100%' : `${totalWidth}px` }">
           <!-- 表头 -->
           <view class="sticky top-0 z-20 flex">
@@ -340,8 +344,10 @@ function openDetail(course: Course) {
             <view class="relative min-w-0 flex-1" :style="{ height: `${totalHeight}px`, width: isLarge ? undefined : `${colWidth * 7}px` }">
               <view
                 v-for="i in 7"
+                :id="`day-col-${i - 1}`"
                 :key="`col-${i}`"
-                class="absolute top-0 h-full border-r border-gray-100 bg-white"
+                class="absolute top-0 h-full border-r border-gray-200/70"
+                :class="isTodayIdx(i - 1) ? 'bg-indigo-50/40' : 'bg-white'"
                 :style="isLarge
                   ? { left: `${((i - 1) * 100) / 7}%`, width: `${100 / 7}%` }
                   : { left: `${(i - 1) * colWidth}px`, width: `${colWidth}px` }"
@@ -349,7 +355,7 @@ function openDetail(course: Course) {
               <view
                 v-for="(label, idx) in hourLabels"
                 :key="`line-${label}`"
-                class="absolute left-0 right-0 border-t border-gray-100"
+                class="absolute left-0 right-0 border-t border-gray-200/80 border-dashed"
                 :style="{ top: `${(idx + 1) * HOUR_HEIGHT}px` }"
               />
               <template v-for="(day, i) in days" :key="day">
@@ -366,7 +372,7 @@ function openDetail(course: Course) {
                   }"
                   @click="openDetail(c)"
                 >
-                  <view :class="isLarge ? 'truncate pr-3 text-sm text-gray-800 font-medium leading-tight' : 'truncate pr-3 text-xs text-gray-800 font-medium leading-tight'">
+                  <view :class="[isLarge ? 'truncate pr-3 text-sm font-medium leading-tight' : 'truncate pr-3 text-xs font-medium leading-tight', cColor(c).text]">
                     {{ c.studentName || '未命名' }}
                   </view>
                   <view :class="isLarge ? 'text-xs text-gray-500 leading-tight' : 'text-2xs text-gray-500 leading-tight'">
@@ -374,7 +380,7 @@ function openDetail(course: Course) {
                   </view>
                   <view
                     class="absolute right-1 top-1 status-dot"
-                    :class="c.completed ? 'bg-emerald-400' : 'bg-amber-400'"
+                    :class="c.completed ? 'bg-indigo-500' : 'bg-gray-300'"
                   />
                 </view>
               </template>
