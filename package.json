@@ -89,6 +89,10 @@
     "build:quickapp-webview-union": "uni build -p quickapp-webview-union",
     "upload:changeset": "pnpm changeset && pnpm changeset version",
     "upload:mp": "node ./scripts/upload-weixin.js",
+    "sync:dev": "wrangler dev --config sync-worker/wrangler.jsonc",
+    "sync:deploy": "wrangler deploy --config sync-worker/wrangler.jsonc",
+    "sync:kv:create": "wrangler kv namespace create SYNC_DATA --config sync-worker/wrangler.jsonc",
+    "sync:test": "vitest run --config sync-worker/vitest.config.ts",
     "type-check": "vue-tsc --noEmit",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
@@ -174,7 +178,8 @@
     "vite-plugin-restart": "^1.0.0",
     "vite-plugin-vue-devtools": "^8.0.5",
     "vitest": "3.2.4",
-    "vue-tsc": "^3.0.6"
+    "vue-tsc": "^3.0.6",
+    "wrangler": "^4.157.0"
   },
   "pnpm": {
     "overrides": {

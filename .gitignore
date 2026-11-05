@@ -24,6 +24,10 @@ dist
 .stylelintcache
 .eslintcache
 
+# 本机数据备份与私有配置（含云同步令牌，严禁入库）
+backups
+sync-worker/.wrangler
+
 # Vite 配置加载临时文件（构建/开发时自动生成，非源码）
 vite.config.ts.timestamp-*
 

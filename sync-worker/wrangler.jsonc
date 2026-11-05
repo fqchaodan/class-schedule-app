@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "fanqie-schedule-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  "routes": [
+    {
+      "pattern": "api.fqcdan1001.dpdns.org",
+      "custom_domain": true
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "SYNC_DATA",
+      "id": "d1a30d0618ba4b8f8bab507352a21174"
+    }
+  ]
+}

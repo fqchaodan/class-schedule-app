@@ -7,6 +7,8 @@ import { safeAreaBottom, statusBarHeight } from '@/utils/systemInfo'
 import { bottomBarHeight, isTablet } from '@/store/device'
 import { lightTap } from '@/utils/feedback'
 import { today } from '@/utils/time'
+import { pullNow, pushNow } from '@/sync/sync-service'
+import { switchLocalProfile } from '@/sync/profiles'
 import { useDialog } from '@wot-ui/ui/components/wd-dialog'
 import { useToast } from '@wot-ui/ui/components/wd-toast'
 
@@ -22,6 +24,7 @@ const templateStore = useTemplateStore()
 const recycleStore = useRecycleStore()
 const scheduleStore = useScheduleStore()
 const appStore = useAppStore()
+const syncStore = useSyncStore()
 const dialog = useDialog()
 const toast = useToast()
 
@@ -34,6 +37,68 @@ const defaultFeeRaw = ref(appStore.settings.defaultFee != null ? String(appStore
 watch(defaultFeeRaw, (v) => {
   appStore.updateSettings({ defaultFee: v === '' ? undefined : Number(v) })
 })
+
+const syncUsername = ref(syncStore.username)
+function saveSyncUsername() {
+  const next = syncUsername.value.trim().slice(0, 32)
+  if (next && !/^[\p{L}\p{N}_.-]{1,32}$/u.test(next)) {
+    toast.error('用户名仅支持字母、数字、下划线、点和连字符')
+    syncUsername.value = syncStore.username
+    return false
+  }
+  syncStore.username = next
+  syncUsername.value = next
+  if (next)
+    switchLocalProfile(next)
+  return true
+}
+
+const syncStatus = computed(() => {
+  if (syncStore.syncing)
+    return '正在同步…'
+  if (syncStore.lastSyncError)
+    return `同步失败：${syncStore.lastSyncError}`
+  if (syncStore.lastSyncAt)
+    return `最近同步：${new Date(syncStore.lastSyncAt).toLocaleString()}`
+  return syncStore.configured ? '尚未同步' : '填写用户名后启用同步'
+})
+
+async function pushManually() {
+  if (!saveSyncUsername())
+    return
+  if (!syncStore.configured) {
+    toast.error('请先填写用户名')
+    return
+  }
+  const ok = await pushNow()
+  if (ok)
+    toast.success('已推送到云端')
+  else
+    toast.error(syncStore.lastSyncError || '推送失败')
+}
+
+function pullManually() {
+  if (!saveSyncUsername())
+    return
+  if (!syncStore.configured) {
+    toast.error('请先填写用户名')
+    return
+  }
+  dialog
+    .confirm({
+      title: '从云端拉取',
+      msg: '将用云端备份覆盖本机的课程、课表与模板数据。确定继续？',
+      confirmButtonProps: { type: 'danger' },
+    })
+    .then(async () => {
+      const ok = await pullNow()
+      if (ok)
+        toast.success('已从云端拉取')
+      else
+        toast.error(syncStore.lastSyncError || '拉取失败')
+    })
+    .catch(() => {})
+}
 
 // ---------- 课表管理 ----------
 /** 课表列表（附每张课表的课程数，含默认课表） */
@@ -365,7 +430,7 @@ function clearAll() {
   dialog
     .confirm({
       title: '清空全部数据',
-      msg: '将删除所有课程、课表、模板与回收站数据，且不可恢复。确定继续？',
+      msg: '将清空本机的课程、课表、模板与回收站数据。之后可通过「从云端拉取」恢复云端备份。确定继续？',
       confirmButtonProps: { type: 'danger' },
     })
     .then(() => {
@@ -536,6 +601,47 @@ const templateHint = '可用变量：{student}=学生姓名，{course}=课程名
         </view>
       </view>
 
+      <!-- 云同步 -->
+      <view class="mt-4">
+        <view class="section-label">
+          云同步
+        </view>
+        <wd-cell-group border rounded>
+          <wd-cell title="用户名" center>
+            <template #icon>
+              <view class="i-carbon-user mr-3 text-xl text-indigo-500" />
+            </template>
+            <template #default>
+              <wd-input
+                v-model="syncUsername"
+                placeholder="1-32 位用户名"
+                compact
+                clearable
+                :maxlength="32"
+                custom-style="width: 100%; text-align: right;"
+                @blur="saveSyncUsername"
+                @confirm="saveSyncUsername"
+              />
+            </template>
+          </wd-cell>
+        </wd-cell-group>
+        <view class="mt-3 flex gap-2">
+          <view class="flex-1">
+            <wd-button block type="primary" :loading="syncStore.syncing" :disabled="syncStore.syncing" @click="pushManually">
+              推送到云端
+            </wd-button>
+          </view>
+          <view class="flex-1">
+            <wd-button block type="primary" variant="plain" :loading="syncStore.syncing" :disabled="syncStore.syncing" @click="pullManually">
+              从云端拉取
+            </wd-button>
+          </view>
+        </view>
+        <view class="mt-2 text-center text-2xs" :class="syncStore.lastSyncError ? 'text-red-500' : 'text-gray-400'">
+          {{ syncStatus }}
+        </view>
+      </view>
+
       <!-- 数据 -->
       <view class="mt-4">
         <view class="section-label">
@@ -693,7 +799,7 @@ const templateHint = '可用变量：{student}=学生姓名，{course}=课程名
 
       <!-- 版权行：平板上跨两列保持居中 -->
       <view class="mt-8 text-center text-2xs text-gray-400" :class="isTablet ? 'col-span-2' : ''">
-        所有数据仅保存在本机，请定期导出备份
+        课表默认保存在本机；启用云同步后会按用户名上传到云端
       </view>
     </view>
 

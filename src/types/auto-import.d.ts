@@ -86,6 +86,7 @@ declare global {
   const useModel: typeof import('vue')['useModel']
   const useRecycleStore: typeof import('../store/recycle')['useRecycleStore']
   const useScheduleStore: typeof import('../store/schedule')['useScheduleStore']
+  const useSyncStore: typeof import('../store/sync')['useSyncStore']
   const useSlots: typeof import('vue')['useSlots']
   const useTemplateStore: typeof import('../store/template')['useTemplateStore']
   const useTemplateRef: typeof import('vue')['useTemplateRef']
