@@ -6,7 +6,7 @@ import { clearAllNotificationTimers, requestNotificationPermission, rescheduleNo
 import { safeAreaBottom, statusBarHeight } from '@/utils/systemInfo'
 import { bottomBarHeight, isTablet } from '@/store/device'
 import { lightTap } from '@/utils/feedback'
-import { today } from '@/utils/time'
+import { formatDateTime, today } from '@/utils/time'
 import { pullNow, pushNow } from '@/sync/sync-service'
 import { switchLocalProfile } from '@/sync/profiles'
 import { useDialog } from '@wot-ui/ui/components/wd-dialog'
@@ -41,7 +41,8 @@ watch(defaultFeeRaw, (v) => {
 const syncUsername = ref(syncStore.username)
 function saveSyncUsername() {
   const next = syncUsername.value.trim().slice(0, 32)
-  if (next && !/^[\p{L}\p{N}_.-]{1,32}$/u.test(next)) {
+  // APP 端内嵌 JS 引擎不支持 ES2018 的 \p{...} 属性转义（会抛 SyntaxError），改用显式字符集
+  if (next && !/^[\w\u4E00-\u9FA5.-]{1,32}$/.test(next)) {
     toast.error('用户名仅支持字母、数字、下划线、点和连字符')
     syncUsername.value = syncStore.username
     return false
@@ -59,7 +60,7 @@ const syncStatus = computed(() => {
   if (syncStore.lastSyncError)
     return `同步失败：${syncStore.lastSyncError}`
   if (syncStore.lastSyncAt)
-    return `最近同步：${new Date(syncStore.lastSyncAt).toLocaleString()}`
+    return `最近同步：${formatDateTime(syncStore.lastSyncAt)}`
   return syncStore.configured ? '尚未同步' : '填写用户名后启用同步'
 })
 
@@ -625,17 +626,15 @@ const templateHint = '可用变量：{student}=学生姓名，{course}=课程名
             </template>
           </wd-cell>
         </wd-cell-group>
-        <view class="mt-3 flex gap-2">
-          <view class="flex-1">
-            <wd-button block type="primary" :loading="syncStore.syncing" :disabled="syncStore.syncing" @click="pushManually">
-              推送到云端
-            </wd-button>
-          </view>
-          <view class="flex-1">
-            <wd-button block type="primary" variant="plain" :loading="syncStore.syncing" :disabled="syncStore.syncing" @click="pullManually">
-              从云端拉取
-            </wd-button>
-          </view>
+        <!-- 与课表弹窗按钮同构（flex-col 直接子元素、不带 loading/disabled 包装）：
+             带 flex-1 包装层/额外属性绑定的写法在 APP 端点击无法命中 -->
+        <view class="mt-3 flex flex-col gap-2">
+          <wd-button block type="primary" @click="pushManually">
+            推送到云端
+          </wd-button>
+          <wd-button block type="primary" variant="plain" @click="pullManually">
+            从云端拉取
+          </wd-button>
         </view>
         <view class="mt-2 text-center text-2xs" :class="syncStore.lastSyncError ? 'text-red-500' : 'text-gray-400'">
           {{ syncStatus }}
