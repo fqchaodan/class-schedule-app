@@ -370,11 +370,239 @@ export function pickImportFileMp(): Promise<unknown> {
 }
 
 /**
+ * 用 Native.js (java.io) 通过绝对路径直接读取文件内容。
+ * 仅作为 plus.io FileReader 的降级方案——Android 10+ 分区存储下
+ * 读取非本应用创建的外部文件会被系统拒绝（读出空内容）。
+ */
+function readFileViaNativeJs(filePath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    try {
+      // Native.js 桥接对象无类型定义，取 any 句柄使用
+      const File: any = plus.android.importClass('java.io.File')
+      const fileObj = new File(filePath)
+      if (!fileObj.exists()) {
+        reject(new Error('文件不存在'))
+        return
+      }
+      const length = Number(fileObj.length())
+      if (length === 0) {
+        reject(new Error('文件内容为空，请重新导出备份文件'))
+        return
+      }
+
+      // 用 BufferedReader 按行读取拼接，避免 byte[] 传参
+      // （Native.js 不支持把 JS 数组直接当作 Java 原生数组传参）
+      const FileInputStream: any = plus.android.importClass('java.io.FileInputStream')
+      const InputStreamReader: any = plus.android.importClass('java.io.InputStreamReader')
+      const BufferedReader: any = plus.android.importClass('java.io.BufferedReader')
+      const fis = new FileInputStream(filePath)
+      const reader = new BufferedReader(new InputStreamReader(fis, 'UTF-8'))
+      let content = ''
+      // readLine() 返回 null 表示 EOF；每行后补回换行符（最后一行多余的不影响 JSON.parse）
+      for (;;) {
+        const line: string | null = reader.readLine()
+        if (line === null)
+          break
+        content += `${line}\n`
+      }
+      reader.close()
+      fis.close()
+      if (!content) {
+        reject(new Error('文件内容为空，请重新导出备份文件'))
+        return
+      }
+
+      // 去掉 UTF-8 BOM（Windows 记事本等编辑器保存的文件可能携带）
+      if (content.charCodeAt(0) === 0xFEFF)
+        content = content.slice(1)
+      resolve(content)
+    }
+    catch {
+      reject(new Error('读取文件失败'))
+    }
+  })
+}
+
+/**
+ * 用 plus.io FileReader 读取文件（按绝对/相对路径先解析为 LocalFileEntry）。
+ * plus.io 内部走系统 ContentResolver，天然兼容 content:// URI 与
+ * Android 10+ 分区存储，是真机上读取用户选择文件的首选方式。
+ */
+function readFileViaPlusIo(filePath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    plus.io.resolveLocalFileSystemURL(
+      filePath,
+      (entry) => {
+        ;(entry as unknown as PlusIoFileEntry).file(
+          (file) => {
+            if (!file.size) {
+              reject(new Error('FILE_EMPTY'))
+              return
+            }
+            const reader = new plus.io.FileReader()
+            reader.onloadend = (ev) => {
+              const result = (ev.target as any)?.result as string
+              if (!result) {
+                reject(new Error('FILE_EMPTY'))
+                return
+              }
+              resolve(result)
+            }
+            reader.onerror = () => reject(new Error('FILE_READ_ERROR'))
+            reader.readAsText(file, 'utf-8')
+          },
+          () => reject(new Error('FILE_READ_ERROR')),
+        )
+      },
+      () => reject(new Error('FILE_RESOLVE_ERROR')),
+    )
+  })
+}
+
+/** 去掉 file:// 协议前缀：plus.io 认 URL，java.io.File 只认裸路径 */
+function stripFileScheme(path: string): string {
+  if (!path.startsWith('file://'))
+    return path
+  const raw = path.slice('file://'.length)
+  try {
+    return decodeURIComponent(raw)
+  }
+  catch {
+    return raw
+  }
+}
+
+/**
+ * Native.js invoke 薄封装：桥接对象在 @dcloudio/types 中无方法定义，
+ * 且「方法返回的实例」在部分 5+ 版本上没有方法代理，统一走 invoke 最稳。
+ */
+function plusAndroidInvoke(target: any, method: string, ...args: any[]): any {
+  return (plus.android as any).invoke(target, method, ...args)
+}
+
+/**
+ * 在 Java InputStream 上套一层按行读取的 BufferedReader。
+ * 优先 newObject（不依赖类代理），失败时退回 new + importClass 的写法。
+ */
+function createJavaTextReader(stream: any): any {
+  try {
+    return (plus.android as any).newObject(
+      'java.io.BufferedReader',
+      (plus.android as any).newObject('java.io.InputStreamReader', stream, 'UTF-8'),
+    )
+  }
+  catch {
+    const InputStreamReader: any = plus.android.importClass('java.io.InputStreamReader')
+    const BufferedReader: any = plus.android.importClass('java.io.BufferedReader')
+    return new BufferedReader(new InputStreamReader(stream, 'UTF-8'))
+  }
+}
+
+/**
+ * 用 Android ContentResolver 读取 content:// URI 的文本内容。
+ *
+ * plus.io.chooseFile 在 Android 上走系统文档选择器（SAF），返回的是
+ * `content://...` 形式的 URI 而不是文件路径。这类 URI：
+ *   - plus.io.resolveLocalFileSystemURL 解析不了（返回错误）
+ *   - java.io.File 只能构造出一个「不存在」的路径（exists() === false）
+ * 唯一可靠的读法是 ContentResolver.openInputStream 拿字节流。
+ * SAF 返回 URI 时已附带一次性读取授权，因此无需任何存储权限。
+ */
+function readFileViaContentResolver(uri: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let reader: any = null
+    try {
+      const activity: any = plus.android.runtimeMainActivity()
+      if (!activity) {
+        reject(new Error('FILE_READ_ERROR'))
+        return
+      }
+      const Uri: any = plus.android.importClass('android.net.Uri')
+      const uriObj: any = Uri.parse(uri)
+
+      // resolver / stream 都是「方法返回的实例」，没有方法代理，只能走 invoke
+      const resolver: any = plusAndroidInvoke(activity, 'getContentResolver')
+      if (!resolver) {
+        reject(new Error('FILE_READ_ERROR'))
+        return
+      }
+      const stream: any = plusAndroidInvoke(resolver, 'openInputStream', uriObj)
+      if (!stream) {
+        reject(new Error('FILE_NOT_FOUND'))
+        return
+      }
+
+      reader = createJavaTextReader(stream)
+
+      let content = ''
+      // readLine() 返回 null 表示 EOF（部分机型返回 undefined，一并兜住避免死循环）
+      for (;;) {
+        const line: string | null | undefined = plusAndroidInvoke(reader, 'readLine')
+        if (line === null || line === undefined)
+          break
+        content += `${line}\n`
+      }
+      if (!content) {
+        reject(new Error('FILE_EMPTY'))
+        return
+      }
+
+      // 去掉 UTF-8 BOM
+      if (content.charCodeAt(0) === 0xFEFF)
+        content = content.slice(1)
+      resolve(content)
+    }
+    catch (e) {
+      console.error('[readFileViaContentResolver] failed:', uri, e)
+      reject(new Error('FILE_READ_ERROR'))
+    }
+    finally {
+      try {
+        if (reader)
+          plusAndroidInvoke(reader, 'close')
+      }
+      catch {
+        // 关闭失败不影响已读到内容，忽略
+      }
+    }
+  })
+}
+
+/**
+ * Android 读取用户选中文件：按路径形态依次尝试不同读取链路。
+ *
+ *   content:// URI（Android 7+ 系统选择器的标准返回格式）
+ *     1. ContentResolver.openInputStream —— 唯一正解
+ *     2. plus.io FileReader —— 个别 5+ 版本能直接解析，留作兜底
+ *   文件路径 / file:// URL（老系统或第三方文件管理器返回）
+ *     1. plus.io FileReader
+ *     2. java.io.FileInputStream 直接路径读取
+ */
+async function readPickedFileAndroid(filePath: string): Promise<string> {
+  const readers: Array<() => Promise<string>> = filePath.startsWith('content://')
+    ? [() => readFileViaContentResolver(filePath), () => readFileViaPlusIo(filePath)]
+    : [() => readFileViaPlusIo(filePath), () => readFileViaNativeJs(stripFileScheme(filePath))]
+
+  let lastError: Error = new Error('FILE_READ_ERROR')
+  for (const read of readers) {
+    try {
+      return await read()
+    }
+    catch (e) {
+      lastError = e as Error
+      // 文件确实是 0 字节：换任何方式读都是空，直接终止
+      if (lastError.message === 'FILE_EMPTY')
+        break
+    }
+  }
+  throw lastError
+}
+
+/**
  * APP 端导入：弹出文件选择器，读取用户选择的 JSON 文件
  *
- * 使用 plus.io.chooseFile 选择文件，然后通过 Native.js (java.io.FileInputStream)
- * 读取文件内容，避免 plus.io.resolveLocalFileSystemURL 在 Android 10+ 上
- * 因 Scoped Storage 限制无法解析外部路径的问题。
+ * Android 走 readPickedFileAndroid 的多链路策略（content:// URI 必须用
+ * ContentResolver 读），iOS 走 plus.io FileReader（沙盒路径可直接解析）。
  */
 export function pickImportFileApp(): Promise<unknown> {
   return new Promise((resolve, reject) => {
@@ -382,6 +610,12 @@ export function pickImportFileApp(): Promise<unknown> {
     // plus.io.chooseFile 不在 @dcloudio/types 类型定义中，使用 as any 绕过
     const io = plus.io as any
     let settled = false // 防止回调被多次触发（某些机型 chooseFile 回调可能被调用两次）
+    const finish = (fn: () => void) => {
+      if (settled)
+        return
+      settled = true
+      fn()
+    }
     io.chooseFile(
       {
         title: '选择备份文件',
@@ -391,87 +625,56 @@ export function pickImportFileApp(): Promise<unknown> {
       (e: { files: string[] } | null | undefined) => {
         if (settled)
           return
-        settled = true
 
         // 用户取消选择时 e 可能为 null/undefined 或 files 为空数组
         if (!e || !e.files || !e.files.length || !e.files[0]) {
-          reject(new Error('未选择文件'))
+          finish(() => reject(new Error('未选择文件')))
           return
         }
         const filePath = e.files[0]
-
-        // 使用 Native.js (java.io) 读取文件，兼容 Android 10+ Scoped Storage
         const osName = plus.os.name
-        if (osName === 'Android') {
+
+        const parseAndResolve = (content: string) => {
           try {
-            // Native.js 桥接对象无类型定义，取 any 句柄使用
-            const File: any = plus.android.importClass('java.io.File')
-            const fileObj = new File(filePath)
-            if (!fileObj.exists()) {
-              reject(new Error('文件不存在'))
-              return
-            }
-            // 用 Scanner 读取整个文件为字符串，简单可靠
-            const FileInputStream: any = plus.android.importClass('java.io.FileInputStream')
-            const Scanner: any = plus.android.importClass('java.util.Scanner')
-            const fis = new FileInputStream(filePath)
-            const scanner = new Scanner(fis, 'UTF-8')
-            // useDelimiter("\\A") 是常见技巧：匹配文件开头，hasNext 等价于「还有内容」
-            scanner.useDelimiter('\\A')
-            const content = scanner.hasNext() ? scanner.next() : ''
-            scanner.close()
-            fis.close()
-            try {
-              const raw = JSON.parse(String(content))
-              resolve(raw)
-            }
-            catch {
-              reject(new Error('文件不是合法的 JSON'))
-            }
-            return
+            const raw = JSON.parse(content)
+            finish(() => resolve(raw))
           }
           catch {
-            reject(new Error('读取文件失败'))
-            return
+            finish(() => reject(new Error('文件不是合法的 JSON')))
           }
         }
 
-        // iOS 使用 plus.io 的 FileReader 读取
-        plus.io.resolveLocalFileSystemURL(
-          filePath,
-          (entry) => {
-            ;(entry as unknown as PlusIoFileEntry).file(
-              (file) => {
-                const reader = new plus.io.FileReader()
-                reader.onloadend = (ev) => {
-                  try {
-                    const result = (ev.target as any)?.result as string
-                    if (!result) {
-                      reject(new Error('读取文件失败'))
-                      return
-                    }
-                    const raw = JSON.parse(result)
-                    resolve(raw)
-                  }
-                  catch {
-                    reject(new Error('文件不是合法的 JSON'))
-                  }
-                }
-                reader.onerror = () => reject(new Error('读取文件失败'))
-                reader.readAsText(file, 'utf-8')
-              },
-              (err: unknown) => reject(err),
-            )
-          },
-          (err: unknown) => reject(err),
-        )
+        const failUser = (msg: string) => finish(() => reject(new Error(msg)))
+
+        if (osName === 'Android') {
+          // 真机诊断：路径形态（content:// / file:// / 绝对路径）决定走哪条读取链路
+          console.warn('[import] picked file:', filePath)
+          readPickedFileAndroid(filePath)
+            .then(parseAndResolve)
+            .catch((err: Error) => {
+              if (err.message === 'FILE_EMPTY') {
+                failUser('文件内容为空，请重新导出备份文件')
+                return
+              }
+              if (err.message === 'FILE_NOT_FOUND' || err.message === '文件不存在') {
+                // 两条链路都判不存在：多半是 URI 授权已失效（文件被移动/删除）
+                failUser('无法访问所选文件，请将备份文件复制到「Download」目录后重试')
+                return
+              }
+              console.error('[import] read failed:', filePath, err)
+              failUser('读取文件失败，请把备份文件放到手机「下载」目录后再试')
+            })
+          return
+        }
+
+        // iOS：plus.io FileReader 读取（沙盒路径可直接解析）
+        readFileViaPlusIo(filePath)
+          .then(parseAndResolve)
+          .catch(() => failUser('读取文件失败'))
       },
       // 错误回调（用户取消时某些机型会走这里）
       () => {
-        if (settled)
-          return
-        settled = true
-        reject(new Error('未选择文件'))
+        finish(() => reject(new Error('未选择文件')))
       },
     )
     // #endif

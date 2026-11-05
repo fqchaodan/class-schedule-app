@@ -28,6 +28,14 @@ function androidClass(name: string): any {
   return plus.android.importClass(name)
 }
 
+/**
+ * 重新导入桥接对象：Native.js 规则是「方法调用返回的 Java 对象」
+ * 必须再次 importClass 后，其方法代理才会挂载，否则调用报 not a function
+ */
+function androidImport(obj: any): any {
+  return plus.android.importClass(obj)
+}
+
 function androidMainActivity(): any {
   return plus.android.runtimeMainActivity()
 }
@@ -195,8 +203,10 @@ function buildLaunchPendingIntent(notificationId: number): any {
     const packageName = mainActivity.getPackageName()
 
     // 获取主 Activity 类名（通常是 io.dcloud.PandoraEntry 或类似）
-    const mainActivityClass = mainActivity.getClass()
-    const mainActivityName = mainActivityClass.getName()
+    // 关键：getClass() 返回的 Class 对象必须重新 importClass，否则没有方法代理，
+    // 调用 getName() 会报 "getName is not a function"
+    const mainActivityClass = androidImport(mainActivity.getClass())
+    const mainActivityName = String(mainActivityClass.getName())
 
     // 用 setClassName 显式构建启动 Intent，绕过 getLaunchIntentForPackage
     const intent = new Intent(Intent.ACTION_MAIN)

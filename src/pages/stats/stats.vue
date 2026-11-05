@@ -193,14 +193,14 @@ const byStudent = computed(() => {
   return groupStat(groups)
 })
 
-/** 按课时费档位分组（key 为费用字符串，null 归入 'none' 档） */
-const byFee = computed(() => {
+/** 按学生分组，供「按收入」模式按学生总收入排序 */
+const byIncome = computed(() => {
   const groups: Record<string, Course[]> = {}
   for (const c of coursesInRange.value) {
-    const key = c.fee != null ? String(c.fee) : 'none'
+    const key = c.studentName || '未填学生'
     ;(groups[key] ??= []).push(c)
   }
-  return groupStat(groups)
+  return [...groupStat(groups)].sort((a, b) => b.income - a.income)
 })
 
 const total = computed(() => {
@@ -233,15 +233,8 @@ const total = computed(() => {
 type GroupMode = 'student' | 'income'
 const groupMode = ref<GroupMode>('student')
 
-/** 明细列表：学生按课时数降序，收入档位按收入降序并格式化标签 */
-const groupList = computed(() => {
-  if (groupMode.value === 'income') {
-    return [...byFee.value]
-      .sort((a, b) => b.income - a.income)
-      .map(i => ({ ...i, label: i.key === 'none' ? '未填课时费' : `¥${i.key}/节` }))
-  }
-  return byStudent.value
-})
+/** 明细列表：按学生课时数或总收入降序排列 */
+const groupList = computed(() => groupMode.value === 'income' ? byIncome.value : byStudent.value)
 
 /** 明细列表最大值，用于进度条宽度 */
 const maxCount = computed(() => Math.max(1, ...groupList.value.map(i => i.count)))
@@ -317,7 +310,7 @@ const groupOptions: Array<{ value: GroupMode, label: string }> = [
 
         <!-- 第一行：核心三指标 -->
         <view class="flex items-center px-2 py-4">
-          <view class="flex-1 text-center">
+          <view class="min-w-0 flex-1 text-center">
             <view class="text-3xl text-gray-900 font-bold tabular-nums">
               {{ total.count }}
             </view>
@@ -325,8 +318,8 @@ const groupOptions: Array<{ value: GroupMode, label: string }> = [
               课时（节）
             </view>
           </view>
-          <view class="h-10 w-px bg-gray-100" />
-          <view class="flex-1 text-center">
+          <view class="h-10 w-px shrink-0 bg-gray-100" />
+          <view class="min-w-0 flex-1 text-center">
             <view class="text-3xl text-gray-900 font-bold tabular-nums">
               {{ total.hours }}
             </view>
@@ -334,9 +327,12 @@ const groupOptions: Array<{ value: GroupMode, label: string }> = [
               总时长（h）
             </view>
           </view>
-          <view class="h-10 w-px bg-gray-100" />
-          <view class="flex-1 text-center">
-            <view class="text-3xl text-gray-900 font-bold tabular-nums">
+          <view class="h-10 w-px shrink-0 bg-gray-100" />
+          <view class="min-w-0 flex-1 text-center">
+            <view
+              class="text-gray-900 font-bold tabular-nums"
+              :class="String(total.income).length > 5 ? 'text-xl' : 'text-3xl'"
+            >
               ¥{{ total.income }}
             </view>
             <view class="mt-0.5 text-2xs text-gray-400">

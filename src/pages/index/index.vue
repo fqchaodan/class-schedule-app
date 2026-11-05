@@ -109,9 +109,10 @@ function openDetail(course: Course) {
   lightTap()
   uni.navigateTo({ url: `/pages/course/detail?id=${course.id}` })
 }
-function openEdit() {
+/** 点击日期行的 +：带该日期进新增页，自动填充上课日期 */
+function openEditOn(day: string) {
   lightTap()
-  uni.navigateTo({ url: '/pages/course/edit' })
+  uni.navigateTo({ url: `/pages/course/edit?date=${day}` })
 }
 
 /** 长按卡片删除：确认弹窗由页面级单例接管（CourseCard 不再自带 dialog/toast 实例） */
@@ -191,8 +192,8 @@ const weekColumns = computed(() => {
       </view>
     </view>
 
-    <!-- 滚动内容区（底部额外留出可拖拽 FAB 的高度） -->
-    <view class="h-0 min-h-0 flex-1 overflow-y-auto pt-3" :class="isTablet ? 'px-6' : 'px-3'" :style="{ paddingBottom: `${bottomBarHeight + safeAreaBottom + 64}px` }">
+    <!-- 滚动内容区（底部留出 tabbar 高度 + 呼吸留白） -->
+    <view class="h-0 min-h-0 flex-1 overflow-y-auto pt-3" :class="isTablet ? 'px-6' : 'px-3'" :style="{ paddingBottom: `${bottomBarHeight + safeAreaBottom + 16}px` }">
       <!-- 周视图：按天分组（平板上多列网格，手机单列） -->
       <view
         class="grid gap-4"
@@ -209,6 +210,13 @@ const weekColumns = computed(() => {
             <view v-if="isToday(day)" class="status-dot bg-indigo-500" />
             <view v-if="coursesOf(day).length" class="text-2xs text-gray-400">
               {{ coursesOf(day).length }} 节
+            </view>
+            <!-- 当日新增：带上该日期进新增页 -->
+            <view
+              class="ml-auto h-7 w-7 flex shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 active:bg-indigo-100"
+              @click="openEditOn(day)"
+            >
+              <view class="i-carbon-add text-base" />
             </view>
           </view>
           <view
@@ -228,9 +236,6 @@ const weekColumns = computed(() => {
         </view>
       </view>
     </view>
-
-    <!-- 新增按钮（可拖拽） -->
-    <DragFab @click="openEdit" />
 
     <wd-dialog />
     <wd-toast />

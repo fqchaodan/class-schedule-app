@@ -71,10 +71,12 @@ export default defineManifestConfig({
           '<uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>',
           '<uses-permission android:name="android.permission.CHANGE_NETWORK_STATE"/>',
           '<uses-permission android:name="android.permission.WAKE_LOCK"/>',
-          // 仅 Android 10 及以下需要（导出到公共 Download 目录）；
-          // Android 11+ 分区存储下该权限失效，用 maxSdkVersion 明确限定范围
-          '<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>',
-          '<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>',
+          // 仅 Android 10 及以下需要（导出到公共 Download 目录）；Android 11+ 分区存储下该权限失效。
+          // 注意：不能加 android:maxSdkVersion —— 云打包的权限模块会同时注入一条裸声明，
+          // 属性不一致会被 Android Manifest Merger 判为 "duplicated" 直接打包失败；
+          // 完全相同的重复声明会被 merger 静默去重，所以这里保持裸声明与注入版一致。
+          '<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>',
+          '<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>',
           '<uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>',
           '<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>',
         ],

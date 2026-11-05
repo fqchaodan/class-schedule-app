@@ -127,6 +127,9 @@ onLoad((query: any) => {
   else if (appStore.settings.defaultFee != null) {
     feeRaw.value = String(appStore.settings.defaultFee)
   }
+  // 从课表首页按日期新增：预填上课日期（编辑/复制已有课程时不生效）
+  if (!query?.id && query?.date && /^\d{4}-\d{2}-\d{2}$/.test(query.date))
+    startDate.value = query.date
 })
 
 // ---------- 保存 ----------
@@ -267,111 +270,123 @@ onUnmounted(() => {
     <!-- 自定义导航栏 -->
     <NavBar :title="isEdit ? '编辑课程' : isCopyMode ? '复制课程' : '新增课程'" />
     <!-- 滚动内容区（底部留出固定操作条的高度） -->
-    <view class="h-0 min-h-0 flex-1 overflow-y-auto px-0 pt-3 pb-actionbar" :class="isTablet ? 'mx-auto max-w-180' : ''">
-      <!-- 模板选择器 -->
-      <wd-cell-group v-if="courseTemplates.length > 0" border rounded class="mx-3">
-        <wd-cell
-          title="从模板填充"
-          :value="`${courseTemplates.length} 个模板`"
-          is-link
-          center
-          @click="showTemplatePicker = true"
-        />
-      </wd-cell-group>
+    <view class="h-0 min-h-0 flex-1 overflow-y-auto px-3 pt-3 pb-actionbar" :class="isTablet ? 'mx-auto max-w-180' : ''">
+      <!-- 模板快速填充 -->
+      <view v-if="courseTemplates.length > 0" class="card overflow-hidden">
+        <wd-cell-group border>
+          <wd-cell
+            title="从模板填充"
+            :value="`${courseTemplates.length} 个模板`"
+            is-link
+            center
+            @click="showTemplatePicker = true"
+          />
+        </wd-cell-group>
+      </view>
 
       <!-- 课程信息 -->
-      <view class="mt-3 px-3">
-        <wd-cell-group border rounded>
-          <wd-cell title="学生姓名" required center title-width="5em">
-            <template #default>
-              <wd-input
-                v-model="studentName"
-                placeholder="必填，如：张三"
-                compact
-                clearable
-                custom-style="width: 100%; text-align: right;"
-              />
-            </template>
-          </wd-cell>
-          <wd-cell title="课程名" center title-width="5em">
-            <template #default>
-              <wd-input
-                v-model="name"
-                placeholder="选填，作为备注"
-                compact
-                clearable
-                custom-style="width: 100%; text-align: right;"
-              />
-            </template>
-          </wd-cell>
-          <wd-cell title="会议链接" center title-width="5em">
-            <template #default>
-              <wd-input
-                v-model="meetingUrl"
-                placeholder="腾讯会议链接（选填）"
-                compact
-                clearable
-                custom-style="width: 100%; text-align: right;"
-              />
-            </template>
-          </wd-cell>
-          <wd-cell title="课时费/节" center title-width="5em">
-            <template #default>
-              <view class="flex items-center justify-end gap-1">
+      <view :class="courseTemplates.length > 0 ? 'mt-4' : ''">
+        <view class="section-label">
+          课程信息
+        </view>
+        <view class="card overflow-hidden">
+          <wd-cell-group border>
+            <wd-cell title="学生姓名" required center title-width="5em">
+              <template #default>
                 <wd-input
-                  v-model="feeRaw"
-                  type="number"
-                  placeholder="选填"
+                  v-model="studentName"
+                  placeholder="必填，如：张三"
                   compact
-                  custom-style="flex: 1; min-width: 80px; text-align: right;"
+                  clearable
+                  custom-style="width: 100%; text-align: right;"
                 />
-                <text class="text-xs text-gray-400">元</text>
-              </view>
-            </template>
-          </wd-cell>
-        </wd-cell-group>
+              </template>
+            </wd-cell>
+            <wd-cell title="课程名" center title-width="5em">
+              <template #default>
+                <wd-input
+                  v-model="name"
+                  placeholder="选填，作为备注"
+                  compact
+                  clearable
+                  custom-style="width: 100%; text-align: right;"
+                />
+              </template>
+            </wd-cell>
+            <wd-cell title="会议链接" center title-width="5em">
+              <template #default>
+                <wd-input
+                  v-model="meetingUrl"
+                  placeholder="腾讯会议链接（选填）"
+                  compact
+                  clearable
+                  custom-style="width: 100%; text-align: right;"
+                />
+              </template>
+            </wd-cell>
+            <wd-cell title="课时费/节" center title-width="5em">
+              <template #default>
+                <view class="flex items-center justify-end gap-1">
+                  <wd-input
+                    v-model="feeRaw"
+                    type="number"
+                    placeholder="选填"
+                    compact
+                    custom-style="flex: 1; min-width: 80px; text-align: right;"
+                  />
+                  <text class="txt-aux">元</text>
+                </view>
+              </template>
+            </wd-cell>
+          </wd-cell-group>
+        </view>
       </view>
 
-      <!-- 时间 -->
-      <view class="mt-3 px-3">
-        <wd-cell-group border rounded>
-          <wd-cell
-            title="上课日期"
-            is-link
-            center
-            title-width="5em"
-            @click="openStartDateCalendar"
-          >
-            <template #default>
-              <text class="text-sm text-gray-800">{{ startDate }}</text>
-            </template>
-          </wd-cell>
-          <wd-cell
-            title="开始时间"
-            is-link
-            center
-            title-width="5em"
-            @click="showStartTimePicker = true"
-          >
-            <template #default>
-              <text class="text-sm text-gray-800">{{ startTime }}</text>
-            </template>
-          </wd-cell>
-          <wd-cell
-            title="结束时间"
-            is-link
-            center
-            title-width="5em"
-            @click="showEndTimePicker = true"
-          >
-            <template #default>
-              <text class="text-sm text-gray-800">{{ endTime }}</text>
-            </template>
-          </wd-cell>
-        </wd-cell-group>
-      </view>
-      <view class="mt-2 px-2 text-2xs text-gray-400 leading-relaxed">
-        时间任意自定义（1 分钟一档）。
+      <!-- 时间安排 -->
+      <view class="mt-4">
+        <view class="section-label">
+          时间安排
+        </view>
+        <view class="card overflow-hidden">
+          <wd-cell-group border>
+            <wd-cell
+              title="上课日期"
+              is-link
+              center
+              title-width="5em"
+              @click="openStartDateCalendar"
+            >
+              <template #default>
+                <text class="text-sm text-gray-800">{{ startDate }}</text>
+              </template>
+            </wd-cell>
+            <wd-cell
+              title="开始时间"
+              is-link
+              center
+              title-width="5em"
+              @click="showStartTimePicker = true"
+            >
+              <template #default>
+                <text class="text-sm text-gray-800">{{ startTime }}</text>
+              </template>
+            </wd-cell>
+            <wd-cell
+              title="结束时间"
+              is-link
+              center
+              title-width="5em"
+              @click="showEndTimePicker = true"
+            >
+              <template #default>
+                <text class="text-sm text-gray-800">{{ endTime }}</text>
+              </template>
+            </wd-cell>
+          </wd-cell-group>
+          <view class="px-4 py-2.5 txt-aux">
+            时间任意自定义（1 分钟一档）。
+          </view>
+        </view>
       </view>
     </view>
 
