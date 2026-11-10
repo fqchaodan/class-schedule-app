@@ -5,6 +5,7 @@ import { navigateToInterceptor } from '@/router/interceptor'
 import { flushPersistStorage } from '@/store/persist-storage'
 import { initDeviceState } from '@/store/device'
 import { tabbarStore } from '@/tabbar/store'
+import { hydrate, pullSnapshot, setupAutoSync } from '@/sync/sync-service'
 import { createNotificationChannel, requestNotificationPermission, rescheduleNotifications, scheduleCourseNotifications, startForegroundService, stopForegroundService } from '@/utils/notification'
 // #ifdef MP-WEIXIN
 import checkUpdate from '@/utils/updateManager.wx'
@@ -14,6 +15,11 @@ onLaunch((options) => {
   console.log('App.vue onLaunch', options)
   // 初始化窗口尺寸监听（平板判定 / 旋转 / 分屏）
   initDeviceState()
+  // 安装自动云同步，并在已登录时从服务端水合数据
+  setupAutoSync()
+  const bootSyncStore = useSyncStore()
+  if (bootSyncStore.loggedIn)
+    hydrate().catch(() => {})
   // #ifdef MP-WEIXIN
   // 检查小程序新版本（有更新时提示重启应用）
   checkUpdate()
@@ -38,8 +44,27 @@ onLaunch((options) => {
   }
   // #endif
 })
+/** 当前是否已在登录页 */
+function isOnLoginPage() {
+  const pages = getCurrentPages()
+  const current = pages[pages.length - 1]
+  const route = (current as { route?: string } | undefined)?.route || ''
+  return route.includes('pages/login/login')
+}
+
 onShow((options) => {
   console.log('App.vue onShow', options)
+  // 未登录：强制进入登录页
+  const syncStore = useSyncStore()
+  if (!syncStore.loggedIn) {
+    if (!isOnLoginPage())
+      uni.reLaunch({ url: '/pages/login/login' })
+    return
+  }
+  // 只读观看者：每次回到前台拉取最新课表
+  if (syncStore.readOnly) {
+    void pullSnapshot()
+  }
   // 处理直接进入页面路由的情况：如h5直接输入路由、微信小程序分享后进入等
   // https://github.com/unibest-tech/unibest/issues/192
   if (options?.path) {

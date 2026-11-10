@@ -1,84 +1,98 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ExportFile } from '@/types/course'
+import { createPinia, setActivePinia } from 'pinia'
+
+import { fetchSnapshot, getMe, saveSnapshot } from '@/api/sync'
 import { useCourseStore } from '@/store/course'
 import { useSyncStore } from '@/store/sync'
-import { fetchCloudBackup, saveCloudBackup } from '@/api/sync'
-import { pullNow, pushNow } from './sync-service'
+import { applySnapshot, hydrate, login } from './sync-service'
 
 vi.mock('@/api/sync', () => ({
-  fetchCloudBackup: vi.fn(),
-  saveCloudBackup: vi.fn(),
+  getMe: vi.fn(),
+  fetchSnapshot: vi.fn(),
+  saveSnapshot: vi.fn(),
 }))
 
-const remoteBackup: ExportFile = {
-  app: 'teacher-schedule',
-  schemaVersion: 1,
-  exportedAt: 1,
+const emptySnap = {
+  schedules: [],
   courses: [],
   templates: [],
-  schedules: [],
+  recycle: [],
+  settings: {},
+  version: 0,
+  updatedAt: 0,
 }
 
-function makeCourse(id: string) {
-  return {
-    id,
-    scheduleId: 'default',
-    studentName: id,
-    startDate: '2026-11-01',
-    endDate: '2026-11-01',
-    startTime: '10:00',
-    endTime: '11:00',
-    notes: [],
-    createdAt: 1,
-    updatedAt: 1,
-  }
+const aCourse = {
+  id: 'c1',
+  studentName: '小红',
+  startDate: '2026-11-10',
+  endDate: '2026-11-10',
+  startTime: '09:00',
+  endTime: '10:00',
+  notes: [],
+  createdAt: 1,
+  updatedAt: 1,
 }
 
-describe('manual push/pull sync', () => {
-  beforeEach(() => {
-    vi.mocked(fetchCloudBackup).mockReset()
-    vi.mocked(saveCloudBackup).mockReset().mockResolvedValue(2)
+beforeEach(() => {
+  setActivePinia(createPinia())
+  vi.clearAllMocks()
+})
+
+describe('sync-service', () => {
+  it('login validates account and sets writer session', async () => {
+    ;(getMe as any).mockResolvedValue('writer')
+    ;(fetchSnapshot as any).mockResolvedValue(emptySnap)
+    const role = await login('18150867766')
+    expect(role).toBe('writer')
+    const store = useSyncStore()
+    expect(store.account).toBe('18150867766')
+    expect(store.role).toBe('writer')
+    expect(store.readOnly).toBe(false)
   })
 
-  it('push uploads the current local backup to the username slot', async () => {
-    useSyncStore().username = 'Teacher'
-    useCourseStore().courses = [makeCourse('local')]
-
-    expect(await pushNow()).toBe(true)
-    expect(saveCloudBackup).toHaveBeenCalledOnce()
-    const [username, backup] = vi.mocked(saveCloudBackup).mock.calls[0]
-    expect(username).toBe('teacher')
-    expect(backup.courses.map(course => course.id)).toEqual(['local'])
-    expect(useSyncStore().lastSyncAt).toBeGreaterThan(0)
+  it('login sets read-only for viewer role', async () => {
+    ;(getMe as any).mockResolvedValue('viewer')
+    ;(fetchSnapshot as any).mockResolvedValue(emptySnap)
+    await login('15250906963')
+    expect(useSyncStore().readOnly).toBe(true)
   })
 
-  it('pull replaces local data with the cloud backup', async () => {
-    useSyncStore().username = 'teacher'
-    useCourseStore().courses = [makeCourse('stale-local')]
-    vi.mocked(fetchCloudBackup).mockResolvedValue({
-      backup: { ...remoteBackup, courses: [makeCourse('cloud-a'), makeCourse('cloud-b')] },
-      updatedAt: 9,
-    })
-
-    expect(await pullNow()).toBe(true)
-    expect(useCourseStore().courses.map(course => course.id)).toEqual(['cloud-a', 'cloud-b'])
+  it('login rejects an invalid account', async () => {
+    ;(getMe as any).mockRejectedValue(new Error('账号无效或未授权'))
+    await expect(login('000')).rejects.toThrow('账号无效')
   })
 
-  it('pull fails gently when the cloud has no backup', async () => {
-    useSyncStore().username = 'teacher'
-    useCourseStore().courses = [makeCourse('keep')]
-    vi.mocked(fetchCloudBackup).mockResolvedValue(null)
-
-    expect(await pullNow()).toBe(false)
-    expect(useSyncStore().lastSyncError).toBe('云端还没有备份数据')
-    // 云端为空时本机数据保持不变
-    expect(useCourseStore().courses.map(course => course.id)).toEqual(['keep'])
+  it('applySnapshot overwrites local stores', () => {
+    applySnapshot({ ...emptySnap, courses: [aCourse] } as any)
+    expect(useCourseStore().courses).toHaveLength(1)
+    expect(useCourseStore().courses[0]!.studentName).toBe('小红')
   })
 
-  it('requires a username before any operation', async () => {
-    useSyncStore().username = ''
-    expect(await pushNow()).toBe(false)
-    expect(await pullNow()).toBe(false)
-    expect(useSyncStore().lastSyncError).toBe('请先填写用户名')
+  it('hydrate migrates local data up when server is empty', async () => {
+    useSyncStore().setSession('acc', 'writer')
+    useCourseStore().courses.push(aCourse as any)
+    ;(fetchSnapshot as any).mockResolvedValue(emptySnap)
+    ;(saveSnapshot as any).mockResolvedValue(Date.now())
+    await hydrate()
+    expect(saveSnapshot).toHaveBeenCalled()
+    expect(useCourseStore().courses).toHaveLength(1)
+  })
+
+  it('hydrate applies server data when present', async () => {
+    useSyncStore().setSession('acc', 'viewer')
+    ;(fetchSnapshot as any).mockResolvedValue({ ...emptySnap, courses: [{ ...aCourse, id: 's1', studentName: '服务端' }] })
+    await hydrate()
+    expect(useCourseStore().courses).toHaveLength(1)
+    expect(useCourseStore().courses[0]!.studentName).toBe('服务端')
+  })
+
+  it('writer with empty local pulls server data on a fresh device', async () => {
+    useSyncStore().setSession('acc', 'writer')
+    ;(fetchSnapshot as any).mockResolvedValue({ ...emptySnap, courses: [{ ...aCourse, id: 's1', studentName: '服务端' }] })
+    await hydrate()
+    expect(useCourseStore().courses).toHaveLength(1)
+    expect(useCourseStore().courses[0]!.studentName).toBe('服务端')
+    expect(saveSnapshot).not.toHaveBeenCalled()
   })
 })

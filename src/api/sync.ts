@@ -1,14 +1,38 @@
-import type { ExportFile } from '@/types/course'
+import type { AppSettings, Course, CourseTemplate, RecycleItem, Schedule } from '@/types/course'
+
+/** 服务端快照结构（与 sync-worker/src/types.ts 对齐） */
+export interface ServerSnapshot {
+  schedules: Schedule[]
+  courses: Course[]
+  templates: CourseTemplate[]
+  recycle: RecycleItem[]
+  settings: AppSettings
+  version: number
+  updatedAt: number
+}
+
+export interface SnapshotInput {
+  schedules: Schedule[]
+  courses: Course[]
+  templates: CourseTemplate[]
+  recycle: RecycleItem[]
+  settings: AppSettings
+}
+
+export type Role = 'writer' | 'viewer'
 
 const API_BASE = (import.meta.env.VITE_SYNC_SERVER_URL || 'https://api.fqcdan1001.dpdns.org').replace(/\/+$/, '')
 
-function request<T>(method: 'GET' | 'PUT', username: string, data?: ExportFile): Promise<{ statusCode: number, data: T }> {
+function request<T>(method: 'GET' | 'PUT' | 'POST' | 'DELETE', path: string, token: string, body?: unknown): Promise<{ statusCode: number, data: T }> {
   return new Promise((resolve, reject) => {
     uni.request({
-      url: `${API_BASE}/api/sync?username=${encodeURIComponent(username)}`,
+      url: `${API_BASE}${path}`,
       method,
-      data: data as never,
-      header: method === 'PUT' ? { 'Content-Type': 'application/json' } : undefined,
+      data: body as never,
+      header: {
+        Authorization: `Bearer ${token}`,
+        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      },
       timeout: 30_000,
       success: (response) => {
         resolve({ statusCode: response.statusCode, data: response.data as T })
@@ -20,41 +44,31 @@ function request<T>(method: 'GET' | 'PUT', username: string, data?: ExportFile):
   })
 }
 
-export interface CloudBackup {
-  backup: ExportFile
-  updatedAt: number
+/** 校验账号并返回角色；账号无效（非两个允许账号）时抛错 */
+export async function getMe(account: string): Promise<Role> {
+  const res = await request<{ role?: Role, error?: string }>('GET', '/api/me', account)
+  if (res.statusCode === 401)
+    throw new Error('账号无效或未授权')
+  if (res.statusCode < 200 || res.statusCode >= 300)
+    throw new Error(`登录失败（${res.statusCode}）`)
+  if (res.data?.role !== 'writer' && res.data?.role !== 'viewer')
+    throw new Error('登录响应异常')
+  return res.data.role
 }
 
-export async function fetchCloudBackup(username: string): Promise<CloudBackup | null> {
-  const response = await request<unknown>('GET', username)
-  if (response.statusCode === 404)
-    return null
-  if (response.statusCode < 200 || response.statusCode >= 300)
-    throw new Error(`同步读取失败（${response.statusCode}）`)
-  if (!response.data || typeof response.data !== 'object')
-    throw new Error('云端备份格式不正确')
-  const envelope = response.data as Partial<CloudBackup>
-  if (!isExportFile(envelope.backup) || typeof envelope.updatedAt !== 'number')
-    throw new Error('云端备份格式不正确')
-  return envelope as CloudBackup
+export async function fetchSnapshot(token: string): Promise<ServerSnapshot> {
+  const res = await request<ServerSnapshot>('GET', '/api/snapshot', token)
+  if (res.statusCode < 200 || res.statusCode >= 300)
+    throw new Error(`读取云端数据失败（${res.statusCode}）`)
+  const d = res.data
+  if (!d || !Array.isArray(d.courses))
+    throw new Error('云端数据格式不正确')
+  return d
 }
 
-export async function saveCloudBackup(username: string, data: ExportFile): Promise<number> {
-  const response = await request<{ error?: string, updatedAt?: number }>('PUT', username, data)
-  if (response.statusCode < 200 || response.statusCode >= 300)
-    throw new Error(response.data?.error || `同步写入失败（${response.statusCode}）`)
-  if (typeof response.data?.updatedAt !== 'number')
-    throw new Error('同步写入响应格式不正确')
-  return response.data.updatedAt
-}
-
-function isExportFile(value: unknown): value is ExportFile {
-  if (!value || typeof value !== 'object')
-    return false
-  const data = value as Partial<ExportFile>
-  return data.app === 'teacher-schedule'
-    && data.schemaVersion === 1
-    && Array.isArray(data.courses)
-    && Array.isArray(data.templates)
-    && (data.schedules === undefined || Array.isArray(data.schedules))
+export async function saveSnapshot(token: string, input: SnapshotInput): Promise<number> {
+  const res = await request<{ ok?: boolean, version?: number, updatedAt?: number, error?: string }>('PUT', '/api/snapshot', token, input)
+  if (res.statusCode < 200 || res.statusCode >= 300)
+    throw new Error(res.data?.error || `保存失败（${res.statusCode}）`)
+  return res.data?.updatedAt ?? Date.now()
 }

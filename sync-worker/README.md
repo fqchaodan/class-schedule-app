@@ -1,57 +1,70 @@
-# 番茄课表云同步 Worker
+# 番茄课表云同步 Worker（Hono + D1）
 
-这是一个极简 Cloudflare Worker，只提供健康检查和按用户名读写整份 JSON 备份；不使用 D1，不实现课程/课表 CRUD，不负责用户注册或密码认证。
+服务端权威的课表 API。单一共享数据集：**一个写者**（writer token，可读写）+ **一个只读观看者**（viewer token，只读），供两人使用（一人维护课表，另一人只同步查看）。基于 [Hono](https://hono.dev/) + Cloudflare D1（SQLite）。
 
-## API
+## 接口
 
-- `GET /health`：健康检查。
-- `GET /api/sync?username=<用户名>`：读取 `{ backup, updatedAt }`；没有备份时返回 `404`。
-- `PUT /api/sync?username=<用户名>`：覆盖保存该用户名的整份备份，并返回服务端 `updatedAt`。
+| 方法 | 路径 | 权限 | 说明 |
+|---|---|---|---|
+| GET | `/health` | 公开 | 健康检查 |
+| GET | `/api/me` | 任一 token | 返回 `{ role: 'writer' \| 'viewer' }`，客户端据此进入只读模式 |
+| GET | `/api/snapshot` | 读 | 全量快照 `{ schedules, courses, templates, recycle, settings, version, updatedAt }` |
+| PUT | `/api/snapshot` | 写 | 全量覆盖写入（事务），返回 `{ ok, version, updatedAt }` |
+| GET/POST/PATCH/DELETE | `/api/courses`(`/:id`) | 读 / 写 | 课程行级 CRUD |
+| GET/POST/PATCH/DELETE | `/api/templates`(`/:id`) | 读 / 写 | 模板 CRUD |
+| GET/POST/PATCH/DELETE | `/api/schedules`(`/:id`) | 读 / 写 | 课表 CRUD |
+| GET/POST/DELETE | `/api/recycle`(`/:id`) | 读 / 写 | 回收站 |
+| GET/PUT | `/api/settings` | 读 / 写 | 设置 |
+| GET/PUT | `/api/sync?username=` | 公开（兼容） | 旧版整份备份接口，读写映射到同一份 D1 快照 |
+| POST | `/api/admin/import-kv?username=` | 写 | 把旧 KV 里 `user:<username>` 的整份备份一次性导入 D1 |
 
-用户名仅允许 1–32 位 Unicode 字母/数字、下划线、点和连字符；大小写视为相同。KV key 只含规范化用户名，不记录课程 CRUD 数据。
+鉴权：`Authorization: Bearer <token>`。写请求用 viewer token 会返回 `403`。
 
-> 这是无认证的自用功能。知道用户名的人可以读取或覆盖对应数据；用户名不要使用敏感信息。客户端为手动模式：「推送」把本机数据整份覆盖云端，「拉取」用云端备份整份覆盖本机；并发操作没有冲突仲裁，以最后一次操作为准。KV 为最终一致性存储。
+## 首次部署
 
-## 首次配置
-
-1. 在 Cloudflare 控制台确认 `fqcdan1001.dpdns.org` Zone 可用，并且已有 API 子域名 `api.fqcdan1001.dpdns.org`。
-2. 在项目根目录创建 KV namespace：
-
-   ```bash
-   pnpm sync:kv:create
-   ```
-
-3. 将 Wrangler 输出的 namespace ID 写入 `sync-worker/wrangler.jsonc` 的 `kv_namespaces[0].id`，然后登录 Cloudflare：
-
-   ```bash
-   pnpm exec wrangler login
-   ```
-
-4. 本地启动（本地 KV 模拟，不会改线上数据）：
+1. 确认 `class-schedule-db` 已存在（`wrangler.jsonc` 已绑定，database_id `927f59f2-…`）。
+2. 应用 schema：
 
    ```bash
-   pnpm sync:dev
+   pnpm sync:schema          # 线上
+   pnpm sync:schema:local    # 本地模拟
    ```
 
-   测试：`http://localhost:8787/health`。
+3. 配置两个 token（密钥，不入库）：
 
-5. 部署：
+   ```bash
+   pnpm exec wrangler secret put WRITER_TOKEN --config sync-worker/wrangler.jsonc
+   pnpm exec wrangler secret put VIEWER_TOKEN --config sync-worker/wrangler.jsonc
+   ```
 
-   当前配置沿用既有 Worker 名称 `fanqie-schedule-api` 和 API 自定义域名，用同步专用代码更新旧接口；部署后 Worker 不再绑定 D1。D1 数据库本身不会因为解绑自动删除，确认旧数据不再需要后再从 Cloudflare 控制台删除，避免误删。
+4. 部署：
 
    ```bash
    pnpm sync:deploy
    ```
 
-   `wrangler.jsonc` 配置会将 Worker 绑定到 `api.fqcdan1001.dpdns.org`。部署前确认域名 Zone 在同一 Cloudflare 账号并处于 Active。
-
-6. 前端生产构建默认使用 `https://api.fqcdan1001.dpdns.org`。如有变化，在 `env/.env.production` 设置 `VITE_SYNC_SERVER_URL`；H5、APP、微信小程序生产构建都需要 HTTPS API 地址。
-
-## 开发与测试
+## 本地开发 / 测试
 
 ```bash
-pnpm sync:test
-pnpm sync:dev
+pnpm sync:schema:local     # 本地建表
+pnpm sync:dev              # 本地启动（.dev.vars 提供 token）
+pnpm sync:test             # 单测（内存 Db，无需真实 D1）
 ```
 
-线上部署由使用者执行 `pnpm sync:deploy`；本地实现不会自动部署或改动 Cloudflare 资源。
+本地先建 `sync-worker/.dev.vars`（已被 .gitignore 忽略）：
+
+```
+WRITER_TOKEN="local-writer"
+VIEWER_TOKEN="local-viewer"
+```
+
+## 从旧 KV 迁移（数据不丢）
+
+新 Worker 同时绑定了旧 KV（`SYNC_DATA`）与 D1。首次切换到 D1 后，用写者 token 调一次：
+
+```bash
+curl -X POST "https://api.fqcdan1001.dpdns.org/api/admin/import-kv?username=<旧用户名>" \
+  -H "Authorization: Bearer <WRITER_TOKEN>"
+```
+
+即可把该用户名的旧整份备份导入 D1。确认无误后，可在 Cloudflare 控制台清理旧 KV。

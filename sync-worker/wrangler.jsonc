@@ -9,6 +9,13 @@
       "custom_domain": true
     }
   ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "class-schedule-db",
+      "database_id": "927f59f2-c8d1-4ba1-839f-a7e6b51dd0c2"
+    }
+  ],
   "kv_namespaces": [
     {
       "binding": "SYNC_DATA",

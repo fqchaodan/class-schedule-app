@@ -112,11 +112,19 @@ function openDetail(course: Course) {
 /** 点击日期行的 +：带该日期进新增页，自动填充上课日期 */
 function openEditOn(day: string) {
   lightTap()
+  if (useSyncStore().readOnly) {
+    toast.show('只读账号，无法新增课程')
+    return
+  }
   uni.navigateTo({ url: `/pages/course/edit?date=${day}` })
 }
 
 /** 长按卡片删除：确认弹窗由页面级单例接管（CourseCard 不再自带 dialog/toast 实例） */
 function confirmDelete(course: Course) {
+  if (useSyncStore().readOnly) {
+    toast.show('只读账号，无法删除课程')
+    return
+  }
   const name = course.studentName || course.name || '此课程'
   dialog
     .confirm({

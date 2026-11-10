@@ -1,29 +1,35 @@
-import type { ExportFile, RecycleItem } from '@/types/course'
+import type { Role } from '@/api/sync'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
 /**
- * 云同步状态（手动推送/拉取模式）。
- * 用户名是云端数据键；本机按用户名各存一份数据快照（切换用户名时换入换出）。
+ * 会话与同步状态。
+ * - 账号即访问凭证（两个固定账号：主账号=读写，只读账号=只读），登录后存本机。
+ * - 数据以服务端 D1 为事实源；本机 store 作为工作副本，改动后自动上传。
  */
 export const useSyncStore = defineStore(
   'sync',
   () => {
-    const username = ref('')
-    const activeDataUsername = ref('')
-    const localProfiles = ref<Record<string, { data: ExportFile, recycle: RecycleItem[] }>>({})
+    const account = ref('')
+    const role = ref<Role | ''>('')
     const lastSyncAt = ref(0)
     const lastSyncError = ref('')
     const syncing = ref(false)
 
-    const configured = computed(() => username.value.trim().length > 0)
+    const loggedIn = computed(() => account.value.trim().length > 0 && role.value !== '')
+    const readOnly = computed(() => role.value === 'viewer')
+    const roleLabel = computed(() => role.value === 'writer' ? '主账号（读写）' : role.value === 'viewer' ? '只读账号' : '')
 
-    function setActiveDataUsername(name: string) {
-      activeDataUsername.value = name
+    function setSession(acc: string, r: Role) {
+      account.value = acc.trim()
+      role.value = r
     }
 
-    function saveLocalProfile(name: string, data: ExportFile, recycle: RecycleItem[]) {
-      localProfiles.value = { ...localProfiles.value, [name]: { data, recycle } }
+    function logout() {
+      account.value = ''
+      role.value = ''
+      lastSyncAt.value = 0
+      lastSyncError.value = ''
     }
 
     function markSynced() {
@@ -36,15 +42,16 @@ export const useSyncStore = defineStore(
     }
 
     return {
-      username,
-      activeDataUsername,
-      localProfiles,
+      account,
+      role,
       lastSyncAt,
       lastSyncError,
       syncing,
-      configured,
-      setActiveDataUsername,
-      saveLocalProfile,
+      loggedIn,
+      readOnly,
+      roleLabel,
+      setSession,
+      logout,
       markSynced,
       markFailed,
     }

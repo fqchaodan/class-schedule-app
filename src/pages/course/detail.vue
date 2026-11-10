@@ -96,16 +96,28 @@ function removeNote(noteId: string) {
 // ---------- 操作 ----------
 function edit() {
   lightTap()
+  if (useSyncStore().readOnly) {
+    toast.show('只读账号，无法编辑')
+    return
+  }
   uni.navigateTo({ url: `/pages/course/edit?id=${courseId.value}` })
 }
 
 function copyCourse() {
   lightTap()
+  if (useSyncStore().readOnly) {
+    toast.show('只读账号，无法复制')
+    return
+  }
   uni.navigateTo({ url: `/pages/course/edit?id=${courseId.value}&copy=1` })
 }
 
 function remove() {
   lightTap()
+  if (useSyncStore().readOnly) {
+    toast.show('只读账号，无法删除')
+    return
+  }
   dialog
     .confirm({
       title: '删除课程',
