@@ -32,8 +32,8 @@ export function snapshotInput(): SnapshotInput {
   }
 }
 
-/** 用服务端快照整份覆盖本机 store */
-export function applySnapshot(snap: ServerSnapshot) {
+/** 用服务端快照整份覆盖本机 store；preserveLocalRecycle=true 时保留本机回收站条目（写者登录用） */
+export function applySnapshot(snap: ServerSnapshot, preserveLocalRecycle = false) {
   applyingUntil = Date.now() + 1500
   const scheduleStore = useScheduleStore()
   const courseStore = useCourseStore()
@@ -45,8 +45,31 @@ export function applySnapshot(snap: ServerSnapshot) {
   scheduleStore.ensureValid()
   courseStore.courses = snap.courses ?? []
   templateStore.templates = snap.templates ?? []
-  recycleStore.items = snap.recycle ?? []
+  const serverRecycle = snap.recycle ?? []
+  if (preserveLocalRecycle) {
+    const merged = [...serverRecycle]
+    for (const item of recycleStore.items) {
+      if (item?.course?.id && !merged.some(m => m?.course?.id === item.course.id))
+        merged.push(item)
+    }
+    recycleStore.items = merged
+  }
+  else {
+    recycleStore.items = serverRecycle
+  }
   appStore.settings = { ...DEFAULT_SETTINGS, ...(snap.settings ?? {}) }
+}
+
+/**
+ * 本机数据里最新的"真实编辑"时间戳（课程/模板/回收站）。
+ * 不含课表：默认课表在 store 初始化时会自动打上当前时间，作为新鲜度信号不可靠。
+ */
+function localLatestUpdatedAt(): number {
+  let max = 0
+  for (const c of useCourseStore().courses) max = Math.max(max, c.updatedAt || 0)
+  for (const t of useTemplateStore().templates) max = Math.max(max, t.updatedAt || 0)
+  for (const r of useRecycleStore().items) max = Math.max(max, r.deletedAt || 0)
+  return max
 }
 
 export async function pushSnapshot(): Promise<boolean> {
@@ -93,10 +116,10 @@ export async function pullSnapshot(): Promise<boolean> {
 }
 
 /**
- * 启动/登录水合：
+ * 启动/登录水合（防止旧数据覆盖服务端）：
  * - 只读账号：直接以服务端为准覆盖本机。
- * - 写者设备：本机数据视为最新权威（含旧版离线编辑与回收站），登录时上迁 D1；
- *   仅当本机为空（全新设备）时才从服务端拉取。
+ * - 写者设备：仅当本机数据比服务端「更新」时（本机最新 updatedAt > 服务端 updatedAt）才上迁；
+ *   否则以服务端为准覆盖本机（保留本机回收站条目）。全新空设备同理直接拉取。
  */
 export async function hydrate(): Promise<void> {
   const store = useSyncStore()
@@ -111,10 +134,11 @@ export async function hydrate(): Promise<void> {
     const localHasData = useCourseStore().courses.length > 0
       || useTemplateStore().templates.length > 0
       || useRecycleStore().items.length > 0
-    if (localHasData)
+    const localNewer = localHasData && localLatestUpdatedAt() > (snap.updatedAt || 0)
+    if (localNewer)
       await pushSnapshot()
     else
-      applySnapshot(snap)
+      applySnapshot(snap, true)
   }
   catch (error) {
     store.markFailed(error instanceof Error ? error.message : '同步失败')

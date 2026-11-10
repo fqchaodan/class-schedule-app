@@ -95,4 +95,15 @@ describe('sync-service', () => {
     expect(useCourseStore().courses[0]!.studentName).toBe('服务端')
     expect(saveSnapshot).not.toHaveBeenCalled()
   })
+
+  it('writer with STALE local does NOT overwrite server (applies server)', async () => {
+    useSyncStore().setSession('acc', 'writer')
+    // 模拟器旧数据：updatedAt 很小
+    useCourseStore().courses.push({ ...aCourse, id: 'old', studentName: '旧的', updatedAt: 1 } as any)
+    ;(fetchSnapshot as any).mockResolvedValue({ ...emptySnap, updatedAt: 999, courses: [{ ...aCourse, id: 's1', studentName: '服务端', updatedAt: 500 }] })
+    await hydrate()
+    expect(saveSnapshot).not.toHaveBeenCalled()
+    expect(useCourseStore().courses.some(c => c.studentName === '服务端')).toBe(true)
+    expect(useCourseStore().courses.some(c => c.id === 'old')).toBe(false)
+  })
 })
