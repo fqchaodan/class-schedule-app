@@ -22,6 +22,9 @@
   - **`uni.env` 无类型声明（踩坑）**：`@dcloudio/types` 里 `Uni` 没有 `env`，写 `uni.env.USER_DATA_PATH` 会报 TS2339（即使外层有 `#ifdef MP`，MP 构建的类型检查照样报）。用 `(uni as unknown as { env?: {...} }).env?.USER_DATA_PATH ?? globalThis.wx?.env?.USER_DATA_PATH ?? ''` 兜底。而 `getFileSystemManager` / `shareFileMessage` / `chooseMessageFile` **有**类型，直接 `uni.xxx` 即可，不要写 `(uni as any)`。
   - **`return` 后紧跟条件编译块会被 esbuild 警告**：`// #ifdef XXX` 段落里以裸 `return` 结尾时，esbuild 自动插分号会产生 `The following expression is not returned because of an automatically-inserted semicolon`。写成 `return undefined` 即可。
 
+## 同步方案决策（2026-11-11）
+**当前 master = 纯本地存储，无任何云同步/登录。** 历史两版云同步均保留为备份分支：`backup/cloud-sync-hono-d1`（Hono+D1 自动同步，tag `v0.4.0-cloud-sync`）、`backup/cloud-sync-manual`（Worker+KV 手动推送/拉取）。回退基线 db96586；数据模型在云端改造期间未变（`updatedAt`/`schemaVersion:1`），本地数据零迁移。远程 master 仍停 cc04f52，本地是其祖先，push 需 force。若日后再做同步，先看这两个分支，勿从零重写。
+
 ## 环境与工程约定（2026-10-14 更新）
 - dev / build 用 `npx pnpm@10 xxx`（全局 pnpm 被 safe-delete 补丁损坏）；`npx pnpm@10` 走网络，偶尔 502 → 可改用 `./node_modules/.bin/uni build -p mp-weixin` 直接构建。
 - **生成物**：`src/pages.json`/`src/manifest.json` 由 pages.config.ts / manifest.config.ts 在 dev/build 时自动重新生成（**构建会覆盖手改，权限等改动一律改 config 源文件**）；`src/types/async-*.d.ts` 由 bundle-optimizer 生成。`auto-import.d.ts`/`uni-pages.d.ts`/`components.d.ts` 因插件 dts:false **不生成、需手维护**。
