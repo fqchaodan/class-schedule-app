@@ -7,7 +7,7 @@ import { safeAreaBottom, statusBarHeight } from '@/utils/systemInfo'
 import { bottomBarHeight, isTablet } from '@/store/device'
 import { lightTap } from '@/utils/feedback'
 import { formatDateTime, today } from '@/utils/time'
-import { logout } from '@/sync/sync-service'
+import { logout, syncNow } from '@/sync/sync-service'
 import { useDialog } from '@wot-ui/ui/components/wd-dialog'
 import { useToast } from '@wot-ui/ui/components/wd-toast'
 
@@ -46,6 +46,16 @@ const syncStatus = computed(() => {
     return `最近同步：${formatDateTime(syncStore.lastSyncAt)}`
   return syncStore.readOnly ? '只读模式' : '已连接'
 })
+
+async function doSync() {
+  if (syncStore.syncing)
+    return
+  await syncNow()
+  if (syncStore.lastSyncError)
+    toast.error(`同步失败：${syncStore.lastSyncError}`)
+  else
+    toast.success('同步完成')
+}
 
 function doLogout() {
   dialog
@@ -582,6 +592,11 @@ const templateHint = '可用变量：{student}=学生姓名，{course}=课程名
             </template>
             <template #default>
               <text class="text-sm" :class="syncStore.readOnly ? 'text-amber-500' : 'text-indigo-600'">{{ syncStore.roleLabel }}</text>
+            </template>
+          </wd-cell>
+          <wd-cell title="立即同步" is-link @click="doSync">
+            <template #icon>
+              <view class="i-carbon-renew mr-3 text-xl text-indigo-500" />
             </template>
           </wd-cell>
         </wd-cell-group>

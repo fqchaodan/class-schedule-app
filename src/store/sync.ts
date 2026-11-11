@@ -15,6 +15,8 @@ export const useSyncStore = defineStore(
     const lastSyncAt = ref(0)
     const lastSyncError = ref('')
     const syncing = ref(false)
+    /** 已知的服务端版本号：轮询时版本没变就不整份覆盖本机 */
+    const serverVersion = ref(0)
 
     const loggedIn = computed(() => account.value.trim().length > 0 && role.value !== '')
     const readOnly = computed(() => role.value === 'viewer')
@@ -30,6 +32,12 @@ export const useSyncStore = defineStore(
       role.value = ''
       lastSyncAt.value = 0
       lastSyncError.value = ''
+      serverVersion.value = 0
+      syncing.value = false
+    }
+
+    function setServerVersion(version: number) {
+      serverVersion.value = version
     }
 
     function markSynced() {
@@ -47,6 +55,7 @@ export const useSyncStore = defineStore(
       lastSyncAt,
       lastSyncError,
       syncing,
+      serverVersion,
       loggedIn,
       readOnly,
       roleLabel,
@@ -54,7 +63,12 @@ export const useSyncStore = defineStore(
       logout,
       markSynced,
       markFailed,
+      setServerVersion,
     }
   },
-  { persist: true },
+  {
+    // 只持久化会话本身。syncing 若被持久化，进程在同步中途被杀会永久卡在 true，
+    // 之后所有拉取/推送都会被静默跳过（表现为「只有退出重登才更新」）。
+    persist: { paths: ['account', 'role', 'lastSyncAt', 'serverVersion'] },
+  },
 )

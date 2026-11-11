@@ -91,6 +91,7 @@
     "upload:mp": "node ./scripts/upload-weixin.js",
     "sync:dev": "wrangler dev --config sync-worker/wrangler.jsonc",
     "sync:deploy": "wrangler deploy --config sync-worker/wrangler.jsonc",
+    "sync:pages:deploy": "cd sync-worker/pages-proxy && wrangler pages deploy public --project-name fanqie-schedule-api --branch main",
     "sync:kv:create": "wrangler kv namespace create SYNC_DATA --config sync-worker/wrangler.jsonc",
     "sync:schema": "wrangler d1 execute class-schedule-db --remote --file=./sync-worker/schema.sql --config sync-worker/wrangler.jsonc",
     "sync:schema:local": "wrangler d1 execute class-schedule-db --local --file=./sync-worker/schema.sql --config sync-worker/wrangler.jsonc",

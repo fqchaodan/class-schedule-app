@@ -2,6 +2,10 @@
 
 服务端权威的课表 API。单一共享数据集：**一个写者**（writer token，可读写）+ **一个只读观看者**（viewer token，只读），供两人使用（一人维护课表，另一人只同步查看）。基于 [Hono](https://hono.dev/) + Cloudflare D1（SQLite）。
 
+> **国内访问**：`api.fqcdan1001.dpdns.org` 整段域名在国内被按 SNI 重置，客户端已改走 Cloudflare Pages 反代
+> **https://fanqie-schedule-api.pages.dev**（源码与部署说明见 [pages-proxy](./pages-proxy/README.md)）。
+> 本 Worker 本身无需改动，反代在 CF 内网转发过来。
+
 ## 接口
 
 | 方法 | 路径 | 权限 | 说明 |

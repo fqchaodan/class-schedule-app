@@ -5,7 +5,7 @@ import { navigateToInterceptor } from '@/router/interceptor'
 import { flushPersistStorage } from '@/store/persist-storage'
 import { initDeviceState } from '@/store/device'
 import { tabbarStore } from '@/tabbar/store'
-import { hydrate, pullSnapshot, setupAutoSync } from '@/sync/sync-service'
+import { hydrate, pushSnapshot, setupAutoSync, startAutoPull, stopAutoPull } from '@/sync/sync-service'
 import { createNotificationChannel, requestNotificationPermission, rescheduleNotifications, scheduleCourseNotifications, startForegroundService, stopForegroundService } from '@/utils/notification'
 // #ifdef MP-WEIXIN
 import checkUpdate from '@/utils/updateManager.wx'
@@ -61,10 +61,8 @@ onShow((options) => {
       uni.reLaunch({ url: '/pages/login/login' })
     return
   }
-  // 只读观看者：每次回到前台拉取最新课表
-  if (syncStore.readOnly) {
-    void pullSnapshot()
-  }
+  // 回到前台立即对齐一次服务端，并开始前台轮询（双方都能收到对方的改动）
+  startAutoPull()
   // 处理直接进入页面路由的情况：如h5直接输入路由、微信小程序分享后进入等
   // https://github.com/unibest-tech/unibest/issues/192
   if (options?.path) {
@@ -84,6 +82,10 @@ onShow((options) => {
 })
 onHide(() => {
   console.log('App Hide')
+  // 后台不再轮询，省电省流量；回到前台 onShow 会立刻补一次
+  stopAutoPull()
+  // 把防抖中的改动立刻上传，避免进程被系统回收时丢掉最后一次编辑
+  void pushSnapshot()
   // 进入后台前把防抖中的持久化数据强制落盘，避免未写入窗口内进程被回收
   flushPersistStorage()
   // #ifdef APP-PLUS

@@ -20,6 +20,27 @@ import { useTemplateStore } from '@/store/template'
 let applyingUntil = 0
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 let autoSyncInstalled = false
+/** 前台轮询：让另一台设备/另一个账号的改动不需要退出重登就能看到 */
+let pullTimer: ReturnType<typeof setInterval> | null = null
+/** 本次同步的开始时间，用于回收「进程被杀导致 finally 未执行」留下的脏锁 */
+let syncStartedAt = 0
+/** 本机有尚未成功上传的改动：此时写者侧不能被服务端数据覆盖 */
+let pendingLocalChange = false
+
+/** 轮询间隔：数据量很小（一份快照），20s 足够接近实时，又不至于太费流量 */
+const PULL_INTERVAL = 20_000
+/** 同步锁超时：超过这个时长仍显示同步中，视为脏锁 */
+const SYNC_LOCK_TIMEOUT = 40_000
+
+/** 回收脏锁（老版本把 syncing 持久化过，升级后首次启动可能仍是 true） */
+function releaseStaleLock(store: ReturnType<typeof useSyncStore>) {
+  if (!store.syncing)
+    return
+  if (syncStartedAt && Date.now() - syncStartedAt < SYNC_LOCK_TIMEOUT)
+    return
+  console.warn('[sync] 发现残留的同步锁，已自动释放')
+  store.syncing = false
+}
 
 /** 从各 store 收集当前完整数据 */
 export function snapshotInput(): SnapshotInput {
@@ -76,33 +97,60 @@ export async function pushSnapshot(): Promise<boolean> {
   const store = useSyncStore()
   if (!store.loggedIn || store.readOnly)
     return false
+  releaseStaleLock(store)
   if (store.syncing)
     return false
   store.syncing = true
+  syncStartedAt = Date.now()
   try {
-    await saveSnapshot(store.account, snapshotInput())
+    const res = await saveSnapshot(store.account, snapshotInput())
+    store.setServerVersion(res.version)
     store.markSynced()
+    pendingLocalChange = false
     return true
   }
   catch (error) {
+    // 上传失败时保留「有未上传改动」标记，避免下一轮轮询用旧的服务端数据覆盖本机编辑
+    pendingLocalChange = true
     store.markFailed(error instanceof Error ? error.message : '保存失败')
     return false
   }
   finally {
     store.syncing = false
+    syncStartedAt = 0
   }
 }
 
-export async function pullSnapshot(): Promise<boolean> {
+export interface PullOptions {
+  /** 强制用服务端覆盖本机（忽略版本号与本地待上传改动），仅用于手动「立即同步」 */
+  force?: boolean
+}
+
+/**
+ * 拉取服务端快照。
+ * - 版本号没变：直接跳过，避免整份覆盖造成的无谓重渲染
+ * - 写者有未上传改动：跳过，等推送成功后再拉，防止本地编辑被回滚
+ */
+export async function pullSnapshot(options: PullOptions = {}): Promise<boolean> {
   const store = useSyncStore()
   if (!store.loggedIn)
     return false
+  releaseStaleLock(store)
   if (store.syncing)
     return false
+  if (!options.force && !store.readOnly && pendingLocalChange)
+    return false
   store.syncing = true
+  syncStartedAt = Date.now()
   try {
     const snap = await fetchSnapshot(store.account)
-    applySnapshot(snap)
+    const unchanged = !options.force && snap.version === store.serverVersion
+    if (unchanged) {
+      store.markSynced()
+      return false
+    }
+    applySnapshot(snap, !store.readOnly)
+    store.setServerVersion(snap.version)
     store.markSynced()
     return true
   }
@@ -112,6 +160,43 @@ export async function pullSnapshot(): Promise<boolean> {
   }
   finally {
     store.syncing = false
+    syncStartedAt = 0
+  }
+}
+
+/** 手动立即同步：写者先上传本机改动；只读者强制用服务端数据刷新本机 */
+export async function syncNow(): Promise<void> {
+  const store = useSyncStore()
+  if (!store.loggedIn)
+    return
+  if (store.readOnly) {
+    await pullSnapshot({ force: true })
+    return
+  }
+  const pushed = await pushSnapshot()
+  if (pushed)
+    await pullSnapshot()
+}
+
+/**
+ * 前台轮询：登录后一直在跑，页面停留时也能收到对方的改动。
+ * 写者侧只有在本机没有待上传改动时才会被服务端数据覆盖。
+ */
+export function startAutoPull(): void {
+  stopAutoPull()
+  const store = useSyncStore()
+  if (!store.loggedIn)
+    return
+  void pullSnapshot()
+  pullTimer = setInterval(() => {
+    void pullSnapshot()
+  }, PULL_INTERVAL)
+}
+
+export function stopAutoPull(): void {
+  if (pullTimer) {
+    clearInterval(pullTimer)
+    pullTimer = null
   }
 }
 
@@ -127,6 +212,7 @@ export async function hydrate(): Promise<void> {
     return
   try {
     const snap = await fetchSnapshot(store.account)
+    store.setServerVersion(snap.version)
     if (store.readOnly) {
       applySnapshot(snap)
       return
@@ -153,11 +239,14 @@ export async function login(account: string): Promise<Role> {
     throw new Error('请输入账号')
   const role = await getMe(trimmed)
   store.setSession(trimmed, role)
+  pendingLocalChange = false
   await hydrate()
   return role
 }
 
 export function logout() {
+  stopAutoPull()
+  pendingLocalChange = false
   useSyncStore().logout()
 }
 
@@ -173,6 +262,7 @@ export function setupAutoSync() {
       return
     if (Date.now() < applyingUntil)
       return
+    pendingLocalChange = true
     if (debounceTimer)
       clearTimeout(debounceTimer)
     debounceTimer = setTimeout(() => {
