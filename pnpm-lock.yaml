@@ -12,15 +12,6 @@ importers:
 
   .:
     dependencies:
-      '@alova/adapter-uniapp':
-        specifier: ^2.0.14
-        version: 2.0.14(alova@3.3.4)
-      '@alova/shared':
-        specifier: ^1.3.1
-        version: 1.3.1
-      '@changesets/cli':
-        specifier: ^2.30.0
-        version: 2.30.0(@types/node@20.19.11)
       '@dcloudio/uni-app':
         specifier: 3.0.0-4070620250821001
         version: 3.0.0-4070620250821001(@dcloudio/types@3.4.19)(postcss@8.5.6)(rollup@4.50.0)(vue@3.4.21(typescript@5.8.3))
@@ -72,12 +63,6 @@ importers:
       '@wot-ui/ui':
         specifier: ^2.3.2
         version: 2.3.2(vue@3.4.21(typescript@5.8.3))
-      abortcontroller-polyfill:
-        specifier: ^1.7.8
-        version: 1.7.8
-      alova:
-        specifier: ^3.3.3
-        version: 3.3.4
       dayjs:
         specifier: 1.11.10
         version: 1.11.10
@@ -90,16 +75,13 @@ importers:
       vue:
         specifier: ^3.4.21
         version: 3.4.21(typescript@5.8.3)
-      vue-i18n:
-        specifier: 9.1.9
-        version: 9.1.9(vue@3.4.21(typescript@5.8.3))
       vue-router:
         specifier: 4.5.1
         version: 4.5.1(vue@3.4.21(typescript@5.8.3))
-      z-paging:
-        specifier: 2.8.7
-        version: 2.8.7
     devDependencies:
+      '@changesets/cli':
+        specifier: ^2.30.0
+        version: 2.30.0(@types/node@20.19.11)
       '@commitlint/cli':
         specifier: ^19.8.1
         version: 19.8.1(@types/node@20.19.11)(typescript@5.8.3)
@@ -264,14 +246,6 @@ importers:
         version: 3.0.6(typescript@5.8.3)
 
 packages:
-
-  '@alova/adapter-uniapp@2.0.14':
-    resolution: {integrity: sha512-AHrS/evdhONySkmtYHs6Sh1D+a0+zjBeOltcYY2/az/KEPN9p/l4H9Nvy+ghLhzMzfKfnITxeeMOi5ANyERimw==}
-    peerDependencies:
-      alova: ^3.0.20
-
-  '@alova/shared@1.3.1':
-    resolution: {integrity: sha512-ijSOaFLUFcVzMKSY3avoEE5C03/p9atjMDPBwvNkwnzaCrhv6/m4A121NdadF8YlHCRuifyYfz90IyEdMXTsJg==}
 
   '@ampproject/remapping@2.3.0':
     resolution: {integrity: sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw==}
@@ -3811,9 +3785,6 @@ packages:
     resolution: {integrity: sha512-h8lQ8tacZYnR3vNQTgibj+tODHI5/+l06Au2Pcriv/Gmet0eaj4TwWH41sO9wnHDiQsEj19q0drzdWdeAHtweg==}
     engines: {node: '>=6.5'}
 
-  abortcontroller-polyfill@1.7.8:
-    resolution: {integrity: sha512-9f1iZ2uWh92VcrU9Y8x+LdM4DLj75VE0MJB8zuF1iUnroEptStw+DQ8EQPMUdfe5k+PkB1uUfDQfWbhstH8LrQ==}
-
   accepts@1.3.8:
     resolution: {integrity: sha512-PYAthTa2m2VKxuvSD3DPC/Gy+U+sOA1LAuT8mkmRuvw+NACSaeXEQ+NHcVF7rONl6qcaxV3Uuemwawk+7+SJLw==}
     engines: {node: '>= 0.6'}
@@ -3880,10 +3851,6 @@ packages:
 
   alien-signals@2.0.7:
     resolution: {integrity: sha512-wE7y3jmYeb0+h6mr5BOovuqhFv22O/MV9j5p0ndJsa7z1zJNPGQ4ph5pQk/kTTCWRC3xsA4SmtwmkzQO+7NCNg==}
-
-  alova@3.3.4:
-    resolution: {integrity: sha512-UKKqXdvf8aQ4C7m3brO77YWe5CDz8N59PdAUz7M8gowKUUXTutbk0Vk5DRBrCe0hMUyyNMUhdCZ38llGxCViyQ==}
-    engines: {node: '>= 18.0.0'}
 
   ansi-colors@4.1.3:
     resolution: {integrity: sha512-/6w/C21Pm1A7aZitlI5Ni/2J6FFQN8i1Cvz3kHABAAbw93v/NlvKdVOqz7CCWz/3iv/JplRSEEZ83XION15ovw==}
@@ -8317,9 +8284,6 @@ packages:
     resolution: {integrity: sha512-Hrgsx+orqoygnmhFbKaHE6c296J+HTAQXoxEF6gNupROmmGJRoyzfG3ccAveqCBrwr/2yxQ5BVd/GTl5agOwSg==}
     engines: {node: '>= 0.6'}
 
-  rate-limiter-flexible@5.0.5:
-    resolution: {integrity: sha512-+/dSQfo+3FYwYygUs/V2BBdwGa9nFtakDwKt4l0bnvNB53TNT++QSFewwHX9qXrZJuMe9j+TUaU21lm5ARgqdQ==}
-
   raw-body@2.5.2:
     resolution: {integrity: sha512-8zGqypfENjCIqGhgXToC8aB2r7YrBX+AQAfIPs/Mlk+BtPTztOvTS01NRW/3Eh60J+a48lt8qsCzirQ6loCVfA==}
     engines: {node: '>= 0.8'}
@@ -9573,12 +9537,6 @@ packages:
     peerDependencies:
       vue: ^3.4.37
 
-  vue-i18n@9.1.9:
-    resolution: {integrity: sha512-JeRdNVxS2OGp1E+pye5XB6+M6BBkHwAv9C80Q7+kzoMdUDGRna06tjC0vCB/jDX9aWrl5swxOMFcyAr7or8XTA==}
-    engines: {node: '>= 10'}
-    peerDependencies:
-      vue: ^3.0.0
-
   vue-router@4.5.1:
     resolution: {integrity: sha512-ogAF3P97NPm8fJsE4by9dwSYtDwXIY1nFY9T6DyQnGHd1E2Da94w9JIolpe42LJGIl0DwOHBi8TcRPlPGwbTtw==}
     peerDependencies:
@@ -9837,10 +9795,6 @@ packages:
     resolution: {integrity: sha512-AyeEbWOu/TAXdxlV9wmGcR0+yh2j3vYPGOECcIj2S7MkrLyC7ne+oye2BKTItt0ii2PHk4cDy+95+LshzbXnGg==}
     engines: {node: '>=12.20'}
 
-  z-paging@2.8.7:
-    resolution: {integrity: sha512-RcDeKFoCQB51dmrrTb1PMIazjTqGuAbFmjPS0/N5hdUNTCRvxGOOBTBFolvIxUcsWhrocI9C0mYDgUwXT6Dwcg==}
-    engines: {HBuilderX: ^3.0.7}
-
   zip-stream@4.1.1:
     resolution: {integrity: sha512-9qv4rlDiopXg4E69k+vMHjNN63YFMe9sZMrdlvKnCjlCRWeCBswPPMPUfx+ipsAWq1LXHe70RcbaHdJJpS6hyQ==}
     engines: {node: '>= 10'}
@@ -9849,13 +9803,6 @@ packages:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
 
 snapshots:
-
-  '@alova/adapter-uniapp@2.0.14(alova@3.3.4)':
-    dependencies:
-      '@alova/shared': 1.3.1
-      alova: 3.3.4
-
-  '@alova/shared@1.3.1': {}
 
   '@ampproject/remapping@2.3.0':
     dependencies:
@@ -14229,7 +14176,7 @@ snapshots:
       eslint-visitor-keys: 4.2.1
       espree: 10.4.0
       estraverse: 5.3.0
-      picomatch: 4.0.3
+      picomatch: 4.0.7
 
   '@swc/core-darwin-arm64@1.4.14':
     optional: true
@@ -15252,8 +15199,6 @@ snapshots:
     dependencies:
       event-target-shim: 5.0.1
 
-  abortcontroller-polyfill@1.7.8: {}
-
   accepts@1.3.8:
     dependencies:
       mime-types: 2.1.35
@@ -15314,11 +15259,6 @@ snapshots:
       require-from-string: 2.0.2
 
   alien-signals@2.0.7: {}
-
-  alova@3.3.4:
-    dependencies:
-      '@alova/shared': 1.3.1
-      rate-limiter-flexible: 5.0.5
 
   ansi-colors@4.1.3: {}
 
@@ -20387,8 +20327,7 @@ snapshots:
 
   picomatch@4.0.3: {}
 
-  picomatch@4.0.7:
-    optional: true
+  picomatch@4.0.7: {}
 
   pidtree@0.6.0: {}
 
@@ -20792,8 +20731,6 @@ snapshots:
   quick-lru@5.1.1: {}
 
   range-parser@1.2.1: {}
-
-  rate-limiter-flexible@5.0.5: {}
 
   raw-body@2.5.2:
     dependencies:
@@ -21738,7 +21675,7 @@ snapshots:
 
   ts-declaration-location@1.0.7(typescript@5.8.3):
     dependencies:
-      picomatch: 4.0.3
+      picomatch: 4.0.7
       typescript: 5.8.3
 
   ts-morph@25.0.1:
@@ -22207,14 +22144,6 @@ snapshots:
     dependencies:
       vue: 3.4.21(typescript@5.8.3)
 
-  vue-i18n@9.1.9(vue@3.4.21(typescript@5.8.3)):
-    dependencies:
-      '@intlify/core-base': 9.1.9
-      '@intlify/shared': 9.1.9
-      '@intlify/vue-devtools': 9.1.9
-      '@vue/devtools-api': 6.6.4
-      vue: 3.4.21(typescript@5.8.3)
-
   vue-router@4.5.1(vue@3.4.21(typescript@5.8.3)):
     dependencies:
       '@vue/devtools-api': 6.6.4
@@ -22466,8 +22395,6 @@ snapshots:
   yocto-queue@0.1.0: {}
 
   yocto-queue@1.2.1: {}
-
-  z-paging@2.8.7: {}
 
   zip-stream@4.1.1:
     dependencies:
