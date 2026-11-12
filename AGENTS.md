@@ -15,6 +15,7 @@
 | SOP:新页面/全局组件/分包/tabbar/hooks | [hermes/sop-new-page.md](./hermes/sop-new-page.md) |
 | 性能:分包规则、包体积检查、编码侧规则 | [hermes/performance.md](./hermes/performance.md) |
 | 发布:upload:mp、changesets、uvm、环境切换 | [hermes/release.md](./hermes/release.md) |
+| 分支:纯本地/手动同步/纯后端三版对照与切换 | [hermes/branches.md](./hermes/branches.md) |
 
 三条铁律(全文见 hermes/README.md):
 
